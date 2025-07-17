@@ -1,1 +1,19 @@
-spring.application.name=myshop
+server:
+  port: 8080
+
+spring:
+  datasource:
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: ${DRIVER_CLASS_NAME}
+    url: ${URL}
+
+  jwt:
+    secret: ${JWT_SECRETKEY}
+
+  jpa:
+    hibernate:
+      ddl-auto: create
+    show-sql: true
+    properties:
+      hibernate.format_sql: true
