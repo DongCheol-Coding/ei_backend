@@ -1,5 +1,6 @@
 package com.example.myshop.service;
 
+import com.example.myshop.domain.UserRole;
 import com.example.myshop.domain.dto.UserDto;
 import com.example.myshop.domain.entity.User;
 import com.example.myshop.mapper.UserMapper;
@@ -30,6 +31,14 @@ public class AuthService {
 
         User user = userMapper.toEntity(requestDto);
         user.encodePassword(passwordEncoder.encode(user.getPassword()));
+
+        // 🔥 역할 값이 null 또는 비어있으면 BUYER 부여
+        if (requestDto.getRoles() == null || requestDto.getRoles().isEmpty()) {
+            user.addRole(UserRole.BUYER);
+        } else {
+            requestDto.getRoles().forEach(user::addRole);
+        }
+
         userRepository.save(user);
 
         return userMapper.toResponse(user);

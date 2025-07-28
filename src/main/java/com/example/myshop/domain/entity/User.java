@@ -1,6 +1,8 @@
 package com.example.myshop.domain.entity;
 
+import com.example.myshop.domain.UserRole;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -22,18 +24,19 @@ public class User {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Email(message = "올바른 이메일 형식이 아닙니다.")
     private String email;
 
-    @Column(nullable = false)
     private String password;
 
     private String name;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
+    @Enumerated(EnumType.STRING)
     @Column(name = "role")
-    private Set<String> roles = new HashSet<>(Set.of("SELLER"));
+    @Builder.Default
+    private Set<UserRole> roles = new HashSet<>(Set.of(UserRole.BUYER)); // 기본값은 BUYER
 
     @Column(nullable = false)
     private boolean isDeleted = false;
@@ -49,7 +52,7 @@ public class User {
         this.email = email;
         this.password = password;
         this.name = name;
-        this.roles = new HashSet<>(Set.of("SELLER"));
+        this.roles = new HashSet<>(Set.of(UserRole.BUYER)); // 여기에서 초기화해야 Builder에서도 잘 반영됨
     }
 
     /**
@@ -61,10 +64,9 @@ public class User {
     /**
      * 비즈니스 로직 - 비밀번호 암호화
      */
-    public void addRole(String role) {
+    public void addRole(UserRole role) {
         this.roles.add(role);
     }
-
     /**
      * 비즈니스 로직 - 비밀번호 암호화
      */
