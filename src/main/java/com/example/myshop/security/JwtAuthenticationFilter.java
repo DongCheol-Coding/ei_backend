@@ -25,6 +25,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
         String header = request.getHeader("Authorization");
+
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
             if (jwtTokenProvider.validateToken(token)) {
@@ -33,8 +34,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new UsernamePasswordAuthenticationToken(email, null, null);
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(auth);
+            } else {
+                SecurityContextHolder.clearContext(); // ✅ 토큰이 유효하지 않으면 context 비움
             }
+        } else {
+            SecurityContextHolder.clearContext(); // ✅ 토큰이 없을 때도 context 비움
         }
+
         filterChain.doFilter(request, response);
     }
+
 }

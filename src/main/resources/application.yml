@@ -9,7 +9,7 @@ spring:
     url: ${URL}
 
   jwt:
-    secret: ${JWT_SECRETKEY}
+    secret: ${JWT_SECRET}
 
   jpa:
     hibernate:

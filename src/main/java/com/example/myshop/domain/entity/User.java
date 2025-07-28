@@ -41,6 +41,9 @@ public class User {
     @Column(nullable = false)
     private boolean isDeleted = false;
 
+    @Column(length = 500)
+    private String refreshToken;
+
     @CreationTimestamp
     private LocalDateTime creatAt;
 
