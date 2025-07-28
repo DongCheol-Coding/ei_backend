@@ -2,7 +2,9 @@ package com.example.myshop.controller;
 
 import com.example.myshop.domain.dto.ChangePasswordRequest;
 import com.example.myshop.domain.dto.DeleteAccountRequest;
+import com.example.myshop.domain.dto.TokenResponseDto;
 import com.example.myshop.domain.dto.UserDto;
+import com.example.myshop.security.JwtTokenProvider;
 import com.example.myshop.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @PostMapping("/signup")
     public ResponseEntity<UserDto.Response> signup(@RequestBody @Valid UserDto.Request requestDto) {
@@ -24,9 +27,12 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<UserDto.Response> login(@RequestBody UserDto.LoginRequest request) {
+    public ResponseEntity<TokenResponseDto> login(@RequestBody UserDto.LoginRequest request) {
         UserDto.Response response = authService.login(request.getEmail(), request.getPassword());
-        return ResponseEntity.ok(response);
+        String accessToken = jwtTokenProvider.generateAccessToken(request.getEmail());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(request.getEmail());
+
+        return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
     }
 
     @PatchMapping("/password")

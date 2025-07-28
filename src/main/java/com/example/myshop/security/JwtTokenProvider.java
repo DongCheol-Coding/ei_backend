@@ -16,10 +16,12 @@ import java.util.Date;
 public class JwtTokenProvider {
 
     @Value("${jwt.secret}")
-    private String secretKey; // 환경변수에서 String으로 받기
+    private String secretKey;
 
     private Key key;
-    private final long validityMilliseconds = 36000000;
+    private final long accessTokenValidity = 30 * 60 * 1000L;  // 30분
+    private final long refreshTokenValidity = 14 * 24 * 60 * 60 * 1000L;  // 2주
+
 
     @PostConstruct
     public void init() {
@@ -28,7 +30,7 @@ public class JwtTokenProvider {
 
     public String createToken(String email) {
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + validityMilliseconds);
+        Date expiry = new Date(now.getTime() + accessTokenValidity); // 수정
 
         return Jwts.builder()
                 .setSubject(email)
@@ -57,5 +59,23 @@ public class JwtTokenProvider {
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
+    }
+
+    public String generateAccessToken(String email) {
+        return Jwts.builder()
+                .setSubject(email)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + accessTokenValidity)) // 여기 수정
+                .signWith(key, SignatureAlgorithm.HS256) // secretKey → key 로도 수정
+                .compact();
+    }
+
+    public String generateRefreshToken(String email) {
+        return Jwts.builder()
+                .setSubject(email)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + refreshTokenValidity))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
     }
 }
