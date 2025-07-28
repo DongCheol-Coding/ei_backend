@@ -1,9 +1,6 @@
 package com.example.myshop.controller;
 
-import com.example.myshop.domain.dto.ChangePasswordRequest;
-import com.example.myshop.domain.dto.DeleteAccountRequest;
-import com.example.myshop.domain.dto.TokenResponseDto;
-import com.example.myshop.domain.dto.UserDto;
+import com.example.myshop.domain.dto.*;
 import com.example.myshop.security.JwtTokenProvider;
 import com.example.myshop.service.AuthService;
 import jakarta.validation.Valid;
@@ -20,11 +17,38 @@ public class AuthController {
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;
 
+
     @PostMapping("/signup")
-    public ResponseEntity<UserDto.Response> signup(@RequestBody @Valid UserDto.Request requestDto) {
-        UserDto.Response responseDto = authService.signup(requestDto);
-        return ResponseEntity.ok(responseDto);
+    public ResponseEntity<?> signup(@RequestBody UserDto.Request dto) {
+        authService.requestSignup(dto); // 인증 메일 발송
+        return ResponseEntity.ok("인증 메일이 전송되었습니다.");
     }
+
+    @GetMapping("/verify")
+    public ResponseEntity<?> verifyByEmailLink(
+            @RequestParam String email,
+            @RequestParam String code
+    ) {
+        UserDto.Response response = authService.verifyAndSignup(email, code);
+        return ResponseEntity.ok(response); // 바로 가입 완료 및 로그인 토큰 반환
+    }
+//    @PostMapping("/send-code")
+//    public ResponseEntity<Void> sendVerificationCode(@RequestParam String email) {
+//        authService.sendVerificationCode(email);
+//        return ResponseEntity.ok().build();
+//    }
+//
+//    @PostMapping("/signup")
+//    public ResponseEntity<UserDto.Response> signup(@RequestBody @Valid UserDto.Request requestDto) {
+//        UserDto.Response responseDto = authService.signup(requestDto);
+//        return ResponseEntity.ok(responseDto);
+//    }
+//
+//    @PostMapping("/verify")
+//    public ResponseEntity<String> verifyEmail(@RequestBody EmailVerificationRequestDto request) {
+//        authService.verifyEmail(request.getEmail(), request.getCode());
+//        return ResponseEntity.ok("이메일 인증이 완료되었습니다.");
+//    }
 
     @PostMapping("/login")
     public ResponseEntity<TokenResponseDto> login(@RequestBody UserDto.LoginRequest request) {

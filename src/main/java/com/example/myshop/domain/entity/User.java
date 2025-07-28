@@ -22,6 +22,7 @@ import java.util.Set;
 public class User {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
     private Long id;
 
     @Email(message = "올바른 이메일 형식이 아닙니다.")
@@ -55,7 +56,7 @@ public class User {
         this.email = email;
         this.password = password;
         this.name = name;
-        this.roles = new HashSet<>(Set.of(UserRole.BUYER)); // 여기에서 초기화해야 Builder에서도 잘 반영됨
+        this.roles = new HashSet<>(Set.of(UserRole.BUYER));
     }
 
     /**
