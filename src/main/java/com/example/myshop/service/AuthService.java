@@ -11,14 +11,16 @@ import com.example.myshop.repository.UserRepository;
 import com.example.myshop.security.JwtTokenProvider;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Date;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +32,13 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationRepository emailVerificationRepository;
     private final EmailSender emailSender;
-    private final ObjectMapper objectMapper;
+
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule()) // LocalDate, LocalDateTime 직렬화 지원
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS); // 날짜를 ISO 8601 형식으로 출력
+
+    @Value("${app.client.host}")
+    private String clientHost;
 
     /**
      * 회원가입
@@ -43,7 +51,11 @@ public class AuthService {
 
         String code = createRandomCode();
 
-        ObjectMapper objectMapper = new ObjectMapper();
+        // ✅ password 암호화
+        String rawPassword = dto.getPassword();
+        dto.setPassword(passwordEncoder.encode(rawPassword));
+
+        // ✅ 안전하게 직렬화
         String requestJson;
         try {
             requestJson = objectMapper.writeValueAsString(dto);
@@ -57,11 +69,11 @@ public class AuthService {
                         .code(code)
                         .expirationTime(LocalDateTime.now().plusMinutes(15))
                         .isVerified(false)
-                        .requestData(requestJson)  // 💡 dto 저장
+                        .requestData(requestJson)
                         .build()
         );
 
-        String verifyLink = "http://localhost:8080/api/auth/verify?code=" + code;
+        String verifyLink = clientHost + "/api/auth/verify?email=" + dto.getEmail() + "&code=" + code;
         String content = "아래 링크를 클릭하여 회원가입을 완료하세요:\n" + verifyLink;
         emailSender.send(dto.getEmail(), "MyShop 회원가입 인증", content);
     }
@@ -75,8 +87,7 @@ public class AuthService {
         verification.verify(code); // 검증
 
         UserDto.Request dto = extractRequestDto(verification); // 직렬화 해제
-        User user = userMapper.toEntity(dto);
-        user.encodePassword(passwordEncoder.encode(user.getPassword()));
+        User user = userMapper.toEntity(dto); // password는 이미 암호화된 상태
         user.addRole(UserRole.BUYER);
         userRepository.save(user);
 
@@ -159,82 +170,6 @@ public class AuthService {
             code.append(chars.charAt(index));
         }
         return code.toString();
-    }
-
-    @Transactional
-    public UserDto.Response verifyCodeAndSignup(String email, String inputCode, UserDto.Request dto) {
-        // 1. 인증 내역 확인
-        EmailVerification verification = emailVerificationRepository
-                .findTopByEmailOrderByExpirationTimeDesc(email)
-                .orElseThrow(() -> new IllegalStateException("인증 요청 내역이 없습니다."));
-
-        // 2. 인증 코드 검증 및 상태 변경
-        verification.verify(inputCode);
-
-        // 3. 회원가입 완료
-        if (userRepository.existsByEmailAndIsDeletedFalse(email)) {
-            throw new IllegalStateException("이미 가입된 이메일입니다.");
-        }
-
-        User user = userMapper.toEntity(dto);
-        user.encodePassword(passwordEncoder.encode(user.getPassword()));
-        user.addRole(UserRole.BUYER);
-        userRepository.save(user);
-
-        return userMapper.toResponse(user);
-    }
-
-    public void sendVerificationCode(String email) {
-        // 1. 인증 코드 생성
-        String code = createRandomCode();
-
-        // 2. 인증 정보 저장 (DB)
-        EmailVerification verification = EmailVerification.builder()
-                .email(email)
-                .code(code)
-                .expirationTime(LocalDateTime.now().plusMinutes(5))
-                .build();
-        emailVerificationRepository.save(verification);
-
-        // 3. 이메일 전송
-        emailSender.send(email, "[MyShop] 인증 코드입니다", "인증 코드: " + code);
-    }
-    @Transactional
-    public void verifyCode(String email, String inputCode) {
-        EmailVerification verification = emailVerificationRepository.findTopByEmailOrderByExpirationTimeDesc(email)
-                .orElseThrow(() -> new IllegalArgumentException("인증 요청 내역이 없습니다."));
-
-        verification.verify(inputCode); // 도메인 모델의 검증 로직 호출
-    }
-
-    @Transactional
-    public void verifyEmail(String email, String inputCode) {
-        EmailVerification verification = emailVerificationRepository
-                .findTopByEmailOrderByExpirationTimeDesc(email)
-                .orElseThrow(() -> new IllegalStateException("인증 요청 내역이 없습니다."));
-
-        verification.verify(inputCode);  // 도메인 메서드로 상태 변경
-    }
-
-    @Transactional
-    public UserDto.Response completeSignup(UserDto.Request requestDto) {
-        // 인증 여부 확인
-        EmailVerification verification = emailVerificationRepository
-                .findTopByEmailOrderByExpirationTimeDesc(requestDto.getEmail())
-                .orElseThrow(() -> new IllegalStateException("인증 요청 내역이 없습니다."));
-
-        if (!verification.isVerified()) {
-            throw new IllegalStateException("이메일 인증이 완료되지 않았습니다.");
-        }
-
-        // 회원 정보 저장
-        User user = userMapper.toEntity(requestDto);
-        user.encodePassword(passwordEncoder.encode(user.getPassword()));
-        user.addRole(UserRole.BUYER);
-
-        userRepository.save(user);
-
-        return userMapper.toResponse(user);
     }
 
 }

@@ -31,3 +31,7 @@ spring:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
       mail.smtp.ssl.trust: smtp.naver.com
+
+app:
+  client:
+    host: ${CLIENT_HOST}

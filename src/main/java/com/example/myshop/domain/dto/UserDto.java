@@ -3,11 +3,14 @@ package com.example.myshop.domain.dto;
 import com.example.myshop.domain.UserRole;
 import com.example.myshop.domain.entity.User;
 import com.example.myshop.validation.ValidPassword;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.util.Set;
 
 public class UserDto {
@@ -29,7 +32,14 @@ public class UserDto {
         private String password;
 
         private String name;
+
+        private LocalDate birthDate;
+
+        @Pattern(regexp = "^\\d{10,15}$")
+        private String phone;
+
         private Set<UserRole> roles; // Optional: SELLER 선택 가능
+
         private String code;
     }
 

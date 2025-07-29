@@ -3,7 +3,6 @@ package com.example.myshop.controller;
 import com.example.myshop.domain.dto.*;
 import com.example.myshop.security.JwtTokenProvider;
 import com.example.myshop.service.AuthService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -32,23 +31,6 @@ public class AuthController {
         UserDto.Response response = authService.verifyAndSignup(email, code);
         return ResponseEntity.ok(response); // 바로 가입 완료 및 로그인 토큰 반환
     }
-//    @PostMapping("/send-code")
-//    public ResponseEntity<Void> sendVerificationCode(@RequestParam String email) {
-//        authService.sendVerificationCode(email);
-//        return ResponseEntity.ok().build();
-//    }
-//
-//    @PostMapping("/signup")
-//    public ResponseEntity<UserDto.Response> signup(@RequestBody @Valid UserDto.Request requestDto) {
-//        UserDto.Response responseDto = authService.signup(requestDto);
-//        return ResponseEntity.ok(responseDto);
-//    }
-//
-//    @PostMapping("/verify")
-//    public ResponseEntity<String> verifyEmail(@RequestBody EmailVerificationRequestDto request) {
-//        authService.verifyEmail(request.getEmail(), request.getCode());
-//        return ResponseEntity.ok("이메일 인증이 완료되었습니다.");
-//    }
 
     @PostMapping("/login")
     public ResponseEntity<TokenResponseDto> login(@RequestBody UserDto.LoginRequest request) {
