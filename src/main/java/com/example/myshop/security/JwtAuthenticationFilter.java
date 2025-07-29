@@ -13,41 +13,48 @@ import java.io.IOException;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final JwtTokenProvider jwtTokenProvider;
+        private final JwtTokenProvider jwtTokenProvider;
 
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
-        this.jwtTokenProvider = jwtTokenProvider;
-    }
-
-    @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
-            throws ServletException, IOException {
-        String header = request.getHeader("Authorization");
-
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
-            if (jwtTokenProvider.validateToken(token)) {
-                String email = jwtTokenProvider.getEmail(token);
-                UsernamePasswordAuthenticationToken auth =
-                        new UsernamePasswordAuthenticationToken(email, null, null);
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(auth);
-            } else {
-                SecurityContextHolder.clearContext(); // ✅ 토큰이 유효하지 않으면 context 비움
-            }
-        } else {
-            SecurityContextHolder.clearContext(); // ✅ 토큰이 없을 때도 context 비움
+        public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
+            this.jwtTokenProvider = jwtTokenProvider;
+            System.out.println("✅ JwtAuthenticationFilter 생성됨");
         }
 
-        filterChain.doFilter(request, response);
-    }
+        @Override
+        protected boolean shouldNotFilter(HttpServletRequest request) {
+            String path = request.getRequestURI();
+            System.out.println("✅ shouldNotFilter 요청 경로: " + path);
+            return path.startsWith("/api/auth");
+        }
 
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        return path.startsWith("/api/auth");  // 인증 관련 경로는 필터 통과
-    }
+        @Override
+        protected void doFilterInternal(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        FilterChain filterChain)
+                throws ServletException, IOException {
 
-}
+            System.out.println("✅ doFilterInternal 호출됨");
+
+            String header = request.getHeader("Authorization");
+
+            if (header != null && header.startsWith("Bearer ")) {
+                String token = header.substring(7);
+                if (jwtTokenProvider.validateToken(token)) {
+                    String email = jwtTokenProvider.getEmail(token);
+                    UsernamePasswordAuthenticationToken auth =
+                            new UsernamePasswordAuthenticationToken(email, null, null);
+                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                    System.out.println("✅ 인증 완료: " + email);
+                } else {
+                    System.out.println("❌ 토큰 유효하지 않음");
+                    SecurityContextHolder.clearContext();
+                }
+            } else {
+                System.out.println("❌ Authorization 헤더 없음 또는 잘못됨");
+                SecurityContextHolder.clearContext();
+            }
+
+            filterChain.doFilter(request, response);
+        }
+    }
