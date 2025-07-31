@@ -47,6 +47,9 @@ public class User {
     private Set<UserRole> roles = new HashSet<>(Set.of(UserRole.BUYER)); // 기본값은 BUYER
 
     @Column(nullable = false)
+    private boolean isSocial;
+
+    @Column(nullable = false)
     private boolean isDeleted = false;
 
     @Column(length = 500)
@@ -99,6 +102,8 @@ public class User {
     public void deleteAccount() {
         this.email = "deleted_" + this.id + "@deleted.local";
         this.password = "deleted";
+        this.phone = "deleted";
+        this.birthDate = null;
         this.name = "탈퇴 회원";
         this.isDeleted = true;
         this.roles.clear();

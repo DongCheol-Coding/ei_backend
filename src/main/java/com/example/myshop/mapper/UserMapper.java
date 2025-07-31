@@ -11,6 +11,7 @@ public interface UserMapper {
     // 회원가입 요청 → 엔티티
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "isDeleted", constant = "false")
+    @Mapping(target = "isSocial", constant = "false")
     @Mapping(target = "refreshToken", ignore = true)
     @Mapping(target = "creatAt", ignore = true)
     @Mapping(target = "updateAt", ignore = true)

@@ -20,12 +20,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             System.out.println("✅ JwtAuthenticationFilter 생성됨");
         }
 
-        @Override
-        protected boolean shouldNotFilter(HttpServletRequest request) {
-            String path = request.getRequestURI();
-            System.out.println("✅ shouldNotFilter 요청 경로: " + path);
-            return path.startsWith("/api/auth");
-        }
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        System.out.println("✅ shouldNotFilter 요청 경로: " + path);
+        return path.startsWith("/api/auth") || path.startsWith("/oauth2") || path.startsWith("/login/oauth2");
+    }
 
         @Override
         protected void doFilterInternal(HttpServletRequest request,
@@ -47,11 +47,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(auth);
                     System.out.println("✅ 인증 완료: " + email);
                 } else {
-                    System.out.println("❌ 토큰 유효하지 않음");
+                    System.out.println("토큰 유효하지 않음");
                     SecurityContextHolder.clearContext();
                 }
             } else {
-                System.out.println("❌ Authorization 헤더 없음 또는 잘못됨");
+                System.out.println("Authorization 헤더 없음 또는 잘못됨");
                 SecurityContextHolder.clearContext();
             }
 

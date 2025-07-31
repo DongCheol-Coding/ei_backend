@@ -4,9 +4,11 @@ import com.example.myshop.domain.UserRole;
 import com.example.myshop.domain.dto.UserDto;
 import com.example.myshop.domain.email.EmailSender;
 import com.example.myshop.domain.entity.EmailVerification;
+import com.example.myshop.domain.entity.RefreshToken;
 import com.example.myshop.domain.entity.User;
 import com.example.myshop.mapper.UserMapper;
 import com.example.myshop.repository.EmailVerificationRepository;
+import com.example.myshop.repository.RefreshTokenRepository;
 import com.example.myshop.repository.UserRepository;
 import com.example.myshop.security.JwtTokenProvider;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -32,6 +34,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationRepository emailVerificationRepository;
     private final EmailSender emailSender;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule()) // LocalDate, LocalDateTime 직렬화 지원
@@ -91,7 +94,7 @@ public class AuthService {
         user.addRole(UserRole.BUYER);
         userRepository.save(user);
 
-        String token = jwtTokenProvider.createToken(user.getEmail());
+        String token = jwtTokenProvider.generateAccessToken(user.getEmail());
         return UserDto.Response.fromEntity(user, token);
     }
 
@@ -109,16 +112,16 @@ public class AuthService {
         EmailVerification verification = emailVerificationRepository.findByCode(code)
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 코드입니다."));
 
-        verification.verify(code); // 도메인 로직
+        verification.verify(code);
 
-        UserDto.Request dto = extractRequestDto(verification); // 여기서 사용
+        UserDto.Request dto = extractRequestDto(verification);
 
         User user = userMapper.toEntity(dto);
         user.encodePassword(passwordEncoder.encode(user.getPassword()));
         user.addRole(UserRole.BUYER);
         userRepository.save(user);
 
-        String token = jwtTokenProvider.createToken(user.getEmail());
+        String token = jwtTokenProvider.generateAccessToken(user.getEmail());
         return UserDto.Response.fromEntity(user, token);
     }
 
@@ -155,7 +158,15 @@ public class AuthService {
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new IllegalStateException("이메일 또는 비밀번호가 잘못되었습니다.");
         }
-        String token = jwtTokenProvider.createToken(user.getEmail());
+        String token = jwtTokenProvider.generateAccessToken(user.getEmail());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
+
+        refreshTokenRepository.save(
+                RefreshToken.builder()
+                        .email(user.getEmail())
+                        .token(refreshToken)
+                        .build()
+        );
 
         return UserDto.Response.fromEntity(user, token);
     }

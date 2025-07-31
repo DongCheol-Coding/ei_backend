@@ -41,29 +41,29 @@ public class EmailService {
         verification.verify(inputCode);
     }
 
-    @Transactional
-    public boolean isEmailVerified(String email) {
-        return emailVerificationRepository.findByEmail(email)
-                .map(EmailVerification::isVerified)
-                .orElse(false);
-    }
-
-    @Transactional
-    public void sendEmail(String to, String subject, String content) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(to);
-        message.setSubject(subject);
-        message.setText(content);
-        mailSender.send(message);
-    }
-
-    @Transactional
-    public void verifyEmail(String email, String code) {
-        EmailVerification verification = emailVerificationRepository.findTopByEmailOrderByExpirationTimeDesc(email)
-                .orElseThrow(() -> new IllegalArgumentException("해당 이메일의 인증 정보가 없습니다."));
-
-
-        verification.verify(code); // 도메인 메서드 호출
-    }
+//    @Transactional
+//    public boolean isEmailVerified(String email) {
+//        return emailVerificationRepository.findByEmail(email)
+//                .map(EmailVerification::isVerified)
+//                .orElse(false);
+//    }
+//
+//    @Transactional
+//    public void sendEmail(String to, String subject, String content) {
+//        SimpleMailMessage message = new SimpleMailMessage();
+//        message.setTo(to);
+//        message.setSubject(subject);
+//        message.setText(content);
+//        mailSender.send(message);
+//    }
+//
+//    @Transactional
+//    public void verifyEmail(String email, String code) {
+//        EmailVerification verification = emailVerificationRepository.findTopByEmailOrderByExpirationTimeDesc(email)
+//                .orElseThrow(() -> new IllegalArgumentException("해당 이메일의 인증 정보가 없습니다."));
+//
+//
+//        verification.verify(code); // 도메인 메서드 호출
+//    }
 
 }

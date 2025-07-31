@@ -1,7 +1,33 @@
 server:
   port: 8080
+  servlet:
+    session:
+      cookie:
+        same-site: lax
+
 
 spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            client-id: e412420f75c1f925cc4cdf7322ce1474
+            client-secret: DjuGIkLSy6aTn13wt4it11xgd80E0Pbz
+            redirect-uri: "{baseUrl}/login/oauth2/code/kakao"
+            authorization-grant-type: authorization_code
+            client-authentication-method: client_secret_post
+            scope:
+              - profile_nickname
+              - profile_image
+              - account_email
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-name-attribute: id
+
   datasource:
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
@@ -32,6 +58,7 @@ spring:
       mail.smtp.starttls.enable: true
       mail.smtp.ssl.trust: smtp.naver.com
 
+
 app:
   client:
     host: ${CLIENT_HOST}
@@ -47,3 +74,9 @@ cloud:
       static: ap-northeast-2
     stack:
       auto: false
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
+
