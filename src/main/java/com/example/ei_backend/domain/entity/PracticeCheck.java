@@ -1,17 +1,15 @@
-package com.example.ei_backend.domain.dto;
+package com.example.ei_backend.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDate;
-
 @Entity
-@Table(name = "attendance")
+@Table(name = "practice_check")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-public class Attendance {
+public class PracticeCheck {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -20,7 +18,8 @@ public class Attendance {
     @ManyToOne(fetch = FetchType.LAZY)
     private UserCourse userCourse;
 
-    private LocalDate date;
+    private int practiceNumber;
 
-    private boolean attended;
+    private boolean checked;
 }
+

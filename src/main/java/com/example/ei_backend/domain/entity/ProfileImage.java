@@ -1,6 +1,5 @@
-package com.example.ei_backend.domain.dto;
+package com.example.ei_backend.domain.entity;
 
-import com.example.ei_backend.domain.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 

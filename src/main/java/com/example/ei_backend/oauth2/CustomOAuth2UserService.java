@@ -1,4 +1,4 @@
-package com.example.ei_backend.OAuth2;
+package com.example.ei_backend.oauth2;
 
 import com.example.ei_backend.domain.UserRole;
 import com.example.ei_backend.domain.entity.User;

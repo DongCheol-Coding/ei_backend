@@ -1,31 +1,30 @@
-package com.example.ei_backend.domain.dto.chat;
+package com.example.ei_backend.domain.entity;
 
-import com.example.ei_backend.domain.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "chat_message")
+@Table(name = "user_courses")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-public class ChatMessage {
+public class UserCourse {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    private ChatRoom chatRoom;
+    private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    private User sender;
+    @JoinColumn(name = "course_id")
+    private Course course;
 
-    @Lob
-    private String message;
+    private int progress;
 
-    private LocalDateTime sentAt;
+    private LocalDateTime registeredAt;
 }

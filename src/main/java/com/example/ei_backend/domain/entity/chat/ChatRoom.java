@@ -1,4 +1,4 @@
-package com.example.ei_backend.domain.dto.chat;
+package com.example.ei_backend.domain.entity.chat;
 
 import com.example.ei_backend.domain.entity.User;
 import jakarta.persistence.*;

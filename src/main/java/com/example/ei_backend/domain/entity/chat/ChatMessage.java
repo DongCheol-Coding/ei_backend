@@ -1,6 +1,5 @@
-package com.example.ei_backend.domain.dto;
+package com.example.ei_backend.domain.entity.chat;
 
-import com.example.ei_backend.domain.entity.Course;
 import com.example.ei_backend.domain.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -8,25 +7,25 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "user_courses")
+@Table(name = "chat_message")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-public class UserCourse {
+public class ChatMessage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    private User user;
+    private ChatRoom chatRoom;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "course_id")
-    private Course course;
+    private User sender;
 
-    private int progress;
+    @Lob
+    private String message;
 
-    private LocalDateTime registeredAt;
+    private LocalDateTime sentAt;
 }
