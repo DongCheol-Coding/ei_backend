@@ -2,32 +2,38 @@ package com.example.ei_backend.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "courses")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
-@Entity
-@Table(name = "product")
-public class Product {
+@Builder
+public class Course {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "product_id")
+    @Column(name = "course_id")
     private Long id;
 
     @Column(nullable = false)
-    private String name;
+    private String title;
 
     @Lob
     private String description;
 
     private String imageUrl;
 
-    @Builder
-    public Product(String name, String description, String imageUrl) {
-        this.name = name;
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+
+    // 도메인 로직
+    public void updateCourseInfo(String title, String description) {
+        this.title = title;
         this.description = description;
-        this.imageUrl = imageUrl;
     }
 
     public void updateImageUrl(String imageUrl) {
