@@ -12,8 +12,8 @@ spring:
       client:
         registration:
           kakao:
-            client-id: e412420f75c1f925cc4cdf7322ce1474
-            client-secret: DjuGIkLSy6aTn13wt4it11xgd80E0Pbz
+            client-id: ${KAKAO_CLIENT_ID}
+            client-secret: ${KAKAO_CLIENT_SECRET}
             redirect-uri: "{baseUrl}/login/oauth2/code/kakao"
             authorization-grant-type: authorization_code
             client-authentication-method: client_secret_post
@@ -39,7 +39,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
     show-sql: true
     properties:
       hibernate.format_sql: true
