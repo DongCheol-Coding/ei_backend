@@ -29,7 +29,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          key: ${{ secrets.EC2_KEY }}
           source: "build/libs/*.jar"
           target: "/home/ubuntu/app"
 
@@ -38,7 +38,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          key: ${{ secrets.EC2_KEY }}
           script: |
             pkill -f 'java -jar' || true
             nohup java -jar /home/ubuntu/app/*.jar > /home/ubuntu/app/log.txt 2>&1 &
