@@ -1,8 +1,8 @@
 package com.example.ei_backend.security;
 
-import com.example.ei_backend.OAuth2.CustomOAuth2FailureHandler;
-import com.example.ei_backend.OAuth2.CustomOAuth2UserService;
-import com.example.ei_backend.OAuth2.OAuth2SuccessHandler;
+import com.example.ei_backend.oauth2.CustomOAuth2FailureHandler;
+import com.example.ei_backend.oauth2.CustomOAuth2UserService;
+import com.example.ei_backend.oauth2.OAuth2SuccessHandler;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;

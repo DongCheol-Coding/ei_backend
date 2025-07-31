@@ -51,13 +51,13 @@ public class AuthController {
     }
 
     @PatchMapping("/password")
-    public ResponseEntity<Void> changePassword(@RequestBody ChangePasswordRequest request) {
+    public ResponseEntity<Void> changePassword(@RequestBody ChangePasswordRequestDto request) {
         authService.changePassword(request.getUserId(), request.getNewPassword());
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/account")
-    public ResponseEntity<Void> deleteAccount(@RequestBody DeleteAccountRequest request) {
+    public ResponseEntity<Void> deleteAccount(@RequestBody DeleteAccountRequestDto request) {
         authService.deleteAccount(request.getUserId());
         return ResponseEntity.noContent().build();
     }

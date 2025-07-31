@@ -1,4 +1,4 @@
-package com.example.ei_backend.OAuth2;
+package com.example.ei_backend.oauth2;
 
 import com.example.ei_backend.domain.entity.RefreshToken;
 import com.example.ei_backend.domain.entity.User;

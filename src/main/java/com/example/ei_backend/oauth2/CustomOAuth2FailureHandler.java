@@ -1,4 +1,4 @@
-package com.example.ei_backend.OAuth2;
+package com.example.ei_backend.oauth2;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

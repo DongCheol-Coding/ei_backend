@@ -16,3 +16,4 @@
 - **Amazon S3 (이미지 업로드)**
 - **Amazon RDS (MariaDB)**
 - **GitHub Actions + EC2 (CI/CD)**
+- **도메인 모델 패턴**

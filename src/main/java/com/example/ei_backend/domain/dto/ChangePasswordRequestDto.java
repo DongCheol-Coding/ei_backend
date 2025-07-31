@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Getter @Setter
-public class DeleteAccountRequest {
+public class ChangePasswordRequestDto {
     private Long userId;
+    private String newPassword;
 }

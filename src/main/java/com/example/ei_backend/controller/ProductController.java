@@ -1,7 +1,7 @@
 package com.example.ei_backend.controller;
 
-import com.example.ei_backend.domain.dto.ProductDto;
-import com.example.ei_backend.service.ProductService;
+import com.example.ei_backend.domain.dto.CourseDto;
+import com.example.ei_backend.service.CourseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,13 +17,13 @@ import java.io.IOException;
 @RequestMapping("/api/products")
 public class ProductController {
 
-    private final ProductService productService;
+    private final CourseService productService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ProductDto.Response> createProduct(
-            @ModelAttribute ProductDto.Request request
+    public ResponseEntity<CourseDto.Response> createProduct(
+            @ModelAttribute CourseDto.Request request
     ) throws IOException {
-        ProductDto.Response response = productService.createProduct(request);
+        CourseDto.Response response = productService.createProduct(request);
         return ResponseEntity.ok(response);
     }
 }
