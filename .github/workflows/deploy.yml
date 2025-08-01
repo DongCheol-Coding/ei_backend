@@ -1,41 +1,29 @@
-name: CI/CD Deploy
+name: Deploy to EC2
 
 on:
   push:
-    branches: [ "main" ] # main 브랜치에 push될 때만 실행
+    branches: [ main ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v3
-        with:
-          java-version: '21'
-          distribution: 'temurin'
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Build with Gradle
-        run: ./gradlew clean build
-
-      - name: Upload JAR to EC2 and Deploy
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_PRIVATE_KEY }}
-          source: build/libs/myshop-0.0.1-SNAPSHOT.jar
-          target: /home/ubuntu
-
-      - name: Run JAR on EC2
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_PRIVATE_KEY }}
-          script: |
+      - name: Deploy to EC2
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} '
             pkill -f "java -jar" || true
-            nohup java -jar /home/ubuntu/myshop-0.0.1-SNAPSHOT.jar > log.txt 2>&1 &
+            cd ~/ei_backend
+            ./gradlew build
+            nohup java -jar build/libs/*.jar > log.txt 2>&1 &
+          '
