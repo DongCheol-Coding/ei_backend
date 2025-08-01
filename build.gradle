@@ -65,3 +65,7 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+jar {
+    archiveFileName = 'myshop-0.0.1-SNAPSHOT.jar'
+}
+
