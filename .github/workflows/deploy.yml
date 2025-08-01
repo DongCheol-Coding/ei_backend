@@ -45,7 +45,7 @@ jobs:
           source: "build/libs/myshop-0.0.1-SNAPSHOT.jar"  # 또는 *.jar
           target: "/home/ubuntu/app"
 
-      - name: SSH and restart server
+      - name: Restart Spring Boot app on EC2
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -54,8 +54,7 @@ jobs:
           script: |
             pkill -f "java -jar" || true
             cd /home/ubuntu/app
-            ls -alh  # jar 파일 다시 확인
-            JAR_FILE=$(ls -t *.jar | head -n 1)
-            echo "Starting: $JAR_FILE"
-            nohup java -jar "$JAR_FILE" > log.txt 2>&1 &
-            sleep 10
+            nohup java -jar myshop-0.0.1-SNAPSHOT.jar > log.txt 2>&1 &
+            sleep 5
+            tail -n 30 log.txt
+      
