@@ -52,8 +52,8 @@ jobs:
             pkill -f 'java -jar' || true
             cd /home/ubuntu/app
             JAR_FILE=$(ls -t *.jar | head -n 1)
-            nohup java -jar "$JAR_FILE" > log.txt 2>&1 &
-            sleep 3
+            nohup java -jar "$JAR_FILE" > log.txt 2>&1 & disown
+      
       
       
       
