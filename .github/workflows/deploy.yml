@@ -52,3 +52,4 @@ jobs:
             pkill -f 'java -jar' || true
             nohup java -jar /home/ubuntu/app/myshop-0.0.1-SNAPSHOT.jar > /home/ubuntu/app/log.txt 2>&1 &
 
+
