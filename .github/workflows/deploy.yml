@@ -49,10 +49,13 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
           script: |
-            pkill -f 'java -jar' || true
-            cd /home/ubuntu/app
-            JAR_FILE=$(ls -t *.jar | head -n 1)
-            nohup java -jar "$JAR_FILE" > log.txt 2>&1 & disown
+            bash -c '
+              pkill -f "java -jar" || true
+              cd /home/ubuntu/app
+              JAR_FILE=$(ls -t *.jar | head -n 1)
+              nohup java -jar "$JAR_FILE" > log.txt 2>&1 & disown
+            '
+      
       
       
       
