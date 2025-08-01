@@ -2,7 +2,7 @@ name: Deploy to EC2
 
 on:
   push:
-    branches: [ "main" ]  # main 브랜치에 push될 때만 작동
+    branches: [ "main" ]
 
 jobs:
   build-deploy:
@@ -21,8 +21,19 @@ jobs:
       - name: Grant execute permission for Gradle
         run: chmod +x gradlew
 
-      - name: Build with Gradle
+      - name: Build with Gradle (skip test)
         run: ./gradlew clean build -x test
+
+      - name: Check if JAR file exists
+        run: ls -al build/libs
+
+      - name: Debug SSH Connection
+        run: |
+          echo "$EC2_KEY" > test.pem
+          chmod 400 test.pem
+          ssh -o StrictHostKeyChecking=no -i test.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} -p ${{ secrets.EC2_PORT }} "echo ✅ Connected to EC2"
+        env:
+          EC2_KEY: ${{ secrets.EC2_KEY }}
 
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@master
