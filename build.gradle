@@ -68,4 +68,3 @@ tasks.named('test') {
 jar {
     archiveFileName = 'myshop-0.0.1-SNAPSHOT.jar'
 }
-
