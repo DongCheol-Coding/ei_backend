@@ -24,6 +24,15 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew clean build -x test
 
+      - name: Ensure target directory exists on EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            mkdir -p /home/ubuntu/app
+
       - name: Deploy to EC2
         uses: appleboy/scp-action@master
         with:
@@ -40,5 +49,5 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
           script: |
-            pkill -f 'java -jar' || true
-            nohup java -jar /home/ubuntu/app/*.jar > /home/ubuntu/app/log.txt 2>&1 &
+            pkill -f 'myapp.jar' || true
+            nohup java -jar /home/ubuntu/app/myshop-0.0.1-SNAPSHOT.jar > /home/ubuntu/app/log.txt 2>&1 &
