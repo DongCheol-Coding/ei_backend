@@ -1,58 +1,41 @@
-name: Deploy to EC2
+name: CI/CD Deploy
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ] # main 브랜치에 push될 때만 실행
 
 jobs:
-  build-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v3
         with:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Grant execute permission for Gradle
-        run: chmod +x gradlew
+      - name: Build with Gradle
+        run: ./gradlew clean build
 
-      - name: Build with Gradle (skip test)
-        run: ./gradlew clean build -x test
-
-      - name: Check if JAR file exists
-        run: ls -al build/libs
-
-      - name: Debug SSH Connection
-        run: |
-          echo "$EC2_KEY" > test.pem
-          chmod 400 test.pem
-          ssh -o StrictHostKeyChecking=no -i test.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} -p ${{ secrets.EC2_PORT }} "echo ✅ Connected to EC2"
-        env:
-          EC2_KEY: ${{ secrets.EC2_KEY }}
-
-      - name: Copy JAR to EC2
+      - name: Upload JAR to EC2 and Deploy
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_KEY }}
-          port: ${{ secrets.EC2_PORT }}
-          source: build/libs/*.jar
-          target: /home/ubuntu/app
+          username: ubuntu
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          source: build/libs/myshop-0.0.1-SNAPSHOT.jar
+          target: /home/ubuntu
 
       - name: Run JAR on EC2
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_KEY }}
-          port: ${{ secrets.EC2_PORT }}
+          username: ubuntu
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
           script: |
             pkill -f "java -jar" || true
-            cd /home/ubuntu/app
-            nohup java -jar *.jar > log.txt 2>&1 &
+            nohup java -jar /home/ubuntu/myshop-0.0.1-SNAPSHOT.jar > log.txt 2>&1 &
