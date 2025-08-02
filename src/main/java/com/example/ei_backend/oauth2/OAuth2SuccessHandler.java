@@ -46,7 +46,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                         .build()
         );
 
-        log.info("[OAuth2SuccessHandler] 진입함");
+        log.info("[OAuth2SuccessHandler] 카카오 소셜로그인 접근");
         log.info("User email: {}", user.getEmail());
         log.info("User name: {}", user.getName());
 

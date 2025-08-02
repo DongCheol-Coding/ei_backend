@@ -5,6 +5,7 @@ import com.example.ei_backend.domain.entity.RefreshToken;
 import com.example.ei_backend.repository.RefreshTokenRepository;
 import com.example.ei_backend.security.JwtTokenProvider;
 import com.example.ei_backend.service.AuthService;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -82,7 +83,6 @@ public class AuthController {
 
         return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
     }
-
 
 
 }
