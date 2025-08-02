@@ -29,6 +29,7 @@ jobs:
           cat ~/.ssh/id_rsa_temp | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+        shell: bash
 
       - name: Deploy to EC2
         run: |
