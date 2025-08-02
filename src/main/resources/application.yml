@@ -9,6 +9,8 @@ server:
 
 spring:
   security:
+    filter:
+      dispatcher-types: ASYNC, FORWARD, INCLUDE, ERROR, REQUEST
     oauth2:
       client:
         registration:
@@ -81,3 +83,11 @@ logging:
     org.springframework.security: DEBUG
     org.springframework.security.oauth2: DEBUG
 
+springdoc:
+  swagger-ui:
+    disable-swagger-default-url: true
+    config-url: /v3/api-docs/swagger-config
+    url: /v3/api-docs
+    path: /swagger-ui.html
+    operationsSorter: method
+    display-request-duration: true

@@ -25,7 +25,7 @@ public class EmailSenderImpl implements EmailSender{
             helper.setText(text, false);
 
             // 명시적으로 발신자 주소 설정
-            helper.setFrom(new InternetAddress("hmc0501@naver.com", "MyShop")); // 이름은 원하는 대로
+            helper.setFrom(new InternetAddress("hmc0501@naver.com", "동철코딩")); // 이름은 원하는 대로
 
             mailSender.send(message);
         } catch (Exception e) {

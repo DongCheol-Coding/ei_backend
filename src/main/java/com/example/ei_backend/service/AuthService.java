@@ -78,7 +78,7 @@ public class AuthService {
 
         String verifyLink = clientHost + "/api/auth/verify?email=" + dto.getEmail() + "&code=" + code;
         String content = "아래 링크를 클릭하여 회원가입을 완료하세요:\n" + verifyLink;
-        emailSender.send(dto.getEmail(), "MyShop 회원가입 인증", content);
+        emailSender.send(dto.getEmail(), "DongCheol-Coding 회원가입 인증", content);
     }
 
         @Transactional

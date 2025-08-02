@@ -14,7 +14,6 @@ public class GlobalApiResponseAdvice implements ResponseBodyAdvice<Object> {
 
     @Override
     public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
-        // 특정 클래스는 제외하고 싶은 경우 조건 작성 가능
         return true;
     }
 
@@ -26,13 +25,14 @@ public class GlobalApiResponseAdvice implements ResponseBodyAdvice<Object> {
                                   ServerHttpRequest request,
                                   ServerHttpResponse response) {
 
-        // 이미 ApiResponse로 감싼 응답은 그대로 반환
-        if (body instanceof ApiResponse) {
+        // Swagger 요청은 감싸지 말고 그대로 반환
+        String path = request.getURI().getPath();
+        if (path.contains("/v3/api-docs") || path.contains("/swagger-ui") || path.contains("/swagger-resources")) {
             return body;
         }
 
-        // ResponseEntity로 직접 상태코드 설정한 경우도 그대로 반환
-        if (body instanceof org.springframework.http.ResponseEntity) {
+        // 이미 감싼 경우 or ResponseEntity인 경우는 그대로
+        if (body instanceof ApiResponse || body instanceof org.springframework.http.ResponseEntity) {
             return body;
         }
 

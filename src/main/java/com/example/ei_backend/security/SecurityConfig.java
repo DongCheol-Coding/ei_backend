@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.RequestEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -42,6 +43,14 @@ public class SecurityConfig {
     }
 
     @Bean
+    @Order(0) // 🚨 1보다 앞에 와야 함
+    public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -49,15 +58,35 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/oauth2/**", "/login/oauth2/**").permitAll()
+                        .requestMatchers(
+                                "/",                      // 루트
+                                "/swagger-ui/**",         // Swagger UI 리소스
+                                "/v3/api-docs/**",        // Swagger JSON
+                                "/swagger-resources/**",  // Swagger 리소스
+                                "/webjars/**",            // JS/CSS
+                                "/swagger-ui.html",       // 옛 주소
+                                "/docs",                  // springdoc의 경로
+                                "/docs/**",
+                                "/api/auth/**",           // 로그인 등
+                                "/oauth2/**",
+                                "/login/oauth2/**"
+                        ).permitAll()
                         .requestMatchers("/api/s3/upload").authenticated()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {
-                            response.setContentType("application/json;charset=UTF-8");
-                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                            response.getWriter().write("{\"error\": \"Unauthorized\"}");
+                            String accept = request.getHeader("Accept");
+
+                            if (accept != null && accept.contains("text/html")) {
+                                // Swagger UI와 같은 HTML 요청은 리디렉션 또는 허용
+                                response.sendRedirect("/swagger-ui/index.html"); // 또는 "/docs" 사용 시 "/docs/index.html"
+                            } else {
+                                // 일반 API 요청은 JSON 에러 응답
+                                response.setContentType("application/json;charset=UTF-8");
+                                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                                response.getWriter().write("{\"error\": \"Unauthorized\"}");
+                            }
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             response.setContentType("application/json;charset=UTF-8");
