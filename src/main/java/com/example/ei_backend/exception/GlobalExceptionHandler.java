@@ -21,14 +21,14 @@ public class GlobalExceptionHandler {
                 || uri.equals("/swagger-ui.html");
     }
 
+    //  유효성 검사 실패
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<?> handleValidationExceptions(MethodArgumentNotValidException ex,
-                                                        HttpServletRequest request) throws MethodArgumentNotValidException {
+                                                        HttpServletRequest request) {
         if (isSwaggerRequest(request)) {
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error(HttpStatus.BAD_REQUEST.value(), "유효성 검사 실패"));
-
         }
 
         Map<String, String> errors = new HashMap<>();
@@ -41,4 +41,11 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(HttpStatus.BAD_REQUEST.value(), "유효성 검사 실패"));
     }
 
+    //  사용자 정의 예외
+    @ExceptionHandler(CustomException.class)
+    public ResponseEntity<?> handleCustomException(CustomException e, HttpServletRequest request) {
+        return ResponseEntity
+                .status(e.getErrorCode().getHttpStatus())
+                .body(ApiResponse.error(e.getErrorCode().getHttpStatus().value(), e.getMessage()));
     }
+}

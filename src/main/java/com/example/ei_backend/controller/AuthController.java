@@ -2,7 +2,9 @@ package com.example.ei_backend.controller;
 
 import com.example.ei_backend.domain.dto.*;
 import com.example.ei_backend.domain.entity.RefreshToken;
+import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.repository.RefreshTokenRepository;
+import com.example.ei_backend.repository.UserRepository;
 import com.example.ei_backend.security.JwtTokenProvider;
 import com.example.ei_backend.service.AuthService;
 import jakarta.annotation.PostConstruct;
@@ -12,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.example.ei_backend.config.ApiResponse;
 
+import java.util.List;
 import java.util.Map;
 
 
@@ -23,6 +26,7 @@ public class AuthController {
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final UserRepository userRepository;
 
 
 
@@ -45,7 +49,14 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<TokenResponseDto> login(@RequestBody UserDto.LoginRequest request) {
         UserDto.Response response = authService.login(request.getEmail(), request.getPassword());
-        String accessToken = jwtTokenProvider.generateAccessToken(request.getEmail());
+
+        // Set<UserRole> → List<String> 으로 변환
+        List<String> roles = response.getRoles()
+                .stream()
+                .map(Enum::name)
+                .toList();
+
+        String accessToken = jwtTokenProvider.generateAccessToken(request.getEmail(), roles);
         String refreshToken = jwtTokenProvider.generateRefreshToken(request.getEmail());
 
         return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
@@ -72,6 +83,7 @@ public class AuthController {
         }
 
         String email = jwtTokenProvider.getEmail(refreshToken);
+
         RefreshToken savedToken = refreshTokenRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("저장된 리프레시 토큰이 없습니다."));
 
@@ -79,7 +91,15 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("토큰이 일치하지 않습니다.");
         }
 
-        String newAccessToken = jwtTokenProvider.generateAccessToken(email);
+        //  여기서 roles 조회
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        List<String> roles = user.getRoles().stream()
+                .map(Enum::name)
+                .toList();
+
+        String newAccessToken = jwtTokenProvider.generateAccessToken(email, roles);
 
         return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
     }

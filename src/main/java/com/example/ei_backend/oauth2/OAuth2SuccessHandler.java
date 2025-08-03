@@ -36,7 +36,12 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         User user = customUser.getUser(); // 이미 User 객체로 감싸져 있음
 
-        String accessToken = jwtTokenProvider.generateAccessToken(user.getEmail());
+        String accessToken = jwtTokenProvider.generateAccessToken(
+                user.getEmail(),
+                user.getRoles().stream()
+                        .map(Enum::name) // 혹은 UserRole::name
+                        .toList()
+        );
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
 
         refreshTokenRepository.save(

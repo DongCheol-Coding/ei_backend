@@ -6,12 +6,16 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -24,11 +28,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.info("✅ JwtAuthenticationFilter 생성됨");
         }
 
+    @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         log.info("[JwtFilter] 요청 경로: " + path);
 
-        boolean skip = path.startsWith("/swagger-ui")
+        return path.startsWith("/swagger-ui")
                 || path.equals("/swagger-ui.html")
                 || path.startsWith("/swagger-resources")
                 || path.startsWith("/v3/api-docs")
@@ -36,12 +41,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || path.startsWith("/webjars")
                 || path.equals("/docs")
                 || path.startsWith("/docs/")
-                || path.startsWith("/api/auth")
+                || path.startsWith("/api/auth") // ✅ signup 포함됨
                 || path.startsWith("/oauth2")
                 || path.startsWith("/login/oauth2");
-
-        return skip;
     }
+
 
 
     @Override
@@ -64,11 +68,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String token = header.substring(7);
                 if (jwtTokenProvider.validateToken(token)) {
                     String email = jwtTokenProvider.getEmail(token);
+                    List<String> roles = jwtTokenProvider.getRoles(token);
+
+                    List<GrantedAuthority> authorities = roles.stream()
+                            .map(SimpleGrantedAuthority::new)
+                            .collect(Collectors.toList());
+
+
                     UsernamePasswordAuthenticationToken auth =
-                            new UsernamePasswordAuthenticationToken(email, null, null);
+                            new UsernamePasswordAuthenticationToken(email, null, authorities);
+
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(auth);
-                    log.info("✅ 인증 완료: " + email);
+                    log.info("✅ 인증 완료: {}", email);
                 } else {
                     log.info("토큰 유효하지 않음");
                     SecurityContextHolder.clearContext();
