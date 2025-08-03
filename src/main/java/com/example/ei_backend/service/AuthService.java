@@ -1,11 +1,13 @@
 package com.example.ei_backend.service;
 
+import com.example.ei_backend.domain.ErrorCode;
 import com.example.ei_backend.domain.UserRole;
 import com.example.ei_backend.domain.dto.UserDto;
 import com.example.ei_backend.domain.email.EmailSender;
 import com.example.ei_backend.domain.entity.EmailVerification;
 import com.example.ei_backend.domain.entity.RefreshToken;
 import com.example.ei_backend.domain.entity.User;
+import com.example.ei_backend.exception.CustomException;
 import com.example.ei_backend.mapper.UserMapper;
 import com.example.ei_backend.repository.EmailVerificationRepository;
 import com.example.ei_backend.repository.RefreshTokenRepository;
@@ -23,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +39,7 @@ public class AuthService {
     private final EmailVerificationRepository emailVerificationRepository;
     private final EmailSender emailSender;
     private final RefreshTokenRepository refreshTokenRepository;
+
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule()) // LocalDate, LocalDateTime 직렬화 지원
@@ -91,10 +96,13 @@ public class AuthService {
 
         UserDto.Request dto = extractRequestDto(verification); // 직렬화 해제
         User user = userMapper.toEntity(dto); // password는 이미 암호화된 상태
-        user.addRole(UserRole.MEMBER);
+        user.addRole(UserRole.ROLE_MEMBER);
         userRepository.save(user);
 
-        String token = jwtTokenProvider.generateAccessToken(user.getEmail());
+            String token = jwtTokenProvider.generateAccessToken(
+                    user.getEmail(),
+                    user.getRoles().stream().map(Enum::name).toList()
+            );
         return UserDto.Response.fromEntity(user, token);
     }
 
@@ -106,7 +114,6 @@ public class AuthService {
             throw new IllegalStateException("회원가입 요청 데이터를 복원할 수 없습니다.", e);
         }
     }
-
     @Transactional
     public UserDto.Response verifyAndSignup(String code) {
         EmailVerification verification = emailVerificationRepository.findByCode(code)
@@ -118,15 +125,15 @@ public class AuthService {
 
         User user = userMapper.toEntity(dto);
         user.encodePassword(passwordEncoder.encode(user.getPassword()));
-        user.addRole(UserRole.MEMBER);
+        user.addRole(UserRole.ROLE_MEMBER);
         userRepository.save(user);
 
-        String token = jwtTokenProvider.generateAccessToken(user.getEmail());
+        String token = jwtTokenProvider.generateAccessToken(
+                user.getEmail(),
+                user.getRoles().stream().map(Enum::name).toList()
+        );
         return UserDto.Response.fromEntity(user, token);
     }
-
-
-
     /**
      * 비밀번호 변경
      */
@@ -158,7 +165,10 @@ public class AuthService {
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new IllegalStateException("이메일 또는 비밀번호가 잘못되었습니다.");
         }
-        String token = jwtTokenProvider.generateAccessToken(user.getEmail());
+        String token = jwtTokenProvider.generateAccessToken(
+                user.getEmail(),
+                user.getRoles().stream().map(Enum::name).toList()
+        );
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
 
         refreshTokenRepository.save(
@@ -169,6 +179,37 @@ public class AuthService {
         );
 
         return UserDto.Response.fromEntity(user, token);
+    }
+
+    /**
+     * 검색 로직 구현
+     */
+    @Transactional(readOnly = true)
+    public List<User> searchUser(String name, String phoneSuffix, String role) {
+        List<User> allUsers = userRepository.findAll();
+
+        Stream<User> stream = allUsers.stream();
+
+        // 이름 or 핸드폰 번호 조건
+        if (name != null || phoneSuffix != null) {
+            stream = stream.filter(user -> user.matchesAny(name, phoneSuffix));
+        }
+        // 역할 필터
+        if (role != null) {
+            UserRole targetRole = parseRole(role);
+            stream = stream.filter(user -> user.hasRole(targetRole));
+        }
+
+        return stream.toList();
+
+    }
+
+    private UserRole parseRole(String role) {
+        try {
+            return UserRole.valueOf(role.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(ErrorCode.INVALID_ROLE);
+        }
     }
 
     private String createRandomCode() {

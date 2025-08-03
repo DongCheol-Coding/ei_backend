@@ -40,7 +40,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
                             .name(nickname)
                             .password("소셜로그인")
                             .isSocial(true)
-                            .roles(Set.of(UserRole.MEMBER))
+                            .roles(Set.of(UserRole.ROLE_MEMBER))
                             .build()));
 
             return new CustomOAuth2User(

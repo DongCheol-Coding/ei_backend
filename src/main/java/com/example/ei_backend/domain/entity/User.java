@@ -43,7 +43,7 @@ public class User {
     @Enumerated(EnumType.STRING)
     @Column(name = "role")
     @Builder.Default
-    private Set<UserRole> roles = new HashSet<>(Set.of(UserRole.MEMBER));
+    private Set<UserRole> roles = new HashSet<>(Set.of(UserRole.ROLE_MEMBER));
 
     @Column(nullable = false)
     private boolean isSocial;
@@ -64,7 +64,7 @@ public class User {
         this.email = email;
         this.password = password;
         this.name = name;
-        this.roles = new HashSet<>(Set.of(UserRole.MEMBER));
+        this.roles = new HashSet<>(Set.of(UserRole.ROLE_MEMBER));
     }
 
     /**
@@ -106,5 +106,21 @@ public class User {
         this.isDeleted = true;
         this.roles.clear();
     }
+
+    /**
+     * 역확 포함 여부
+     */
+    public boolean hasRole(UserRole role) {
+        return this.roles.contains(role);
+    }
+
+    /**
+     * 이름 또는 전화번호 일치여부
+     */
+    public boolean matchesAny(String name, String phoneSuffix) {
+        return (this.name != null && this.name.equals(name))
+                || (this.phone != null && this.phone.endsWith(phoneSuffix));
+    }
+
 
 }

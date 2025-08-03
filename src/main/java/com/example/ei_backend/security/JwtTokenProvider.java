@@ -1,5 +1,7 @@
 package com.example.ei_backend.security;
 
+import com.example.ei_backend.domain.UserRole;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
@@ -12,6 +14,8 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
+import java.util.List;
+
 @Component
 @Slf4j
 public class JwtTokenProvider {
@@ -29,6 +33,16 @@ public class JwtTokenProvider {
         this.key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
+    @SuppressWarnings("unchecked")
+    public List<String> getRoles(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("roles", List.class);
+    }
+
 
     public String getEmail(String token) {
         return Jwts.parserBuilder()
@@ -42,19 +56,23 @@ public class JwtTokenProvider {
     public boolean validateToken(String token) {
         try {
             Jwts.parserBuilder()
-                    .setSigningKey(key)
+                    .setSigningKey(secretKey)
                     .build()
                     .parseClaimsJws(token);
             return true;
+        } catch (ExpiredJwtException e) {
+            log.warn("⛔ AccessToken 만료됨: {}", e.getMessage());
+            return false; // or throw new CustomException("만료됨");
         } catch (JwtException | IllegalArgumentException e) {
-            log.info("[JWT 오류] 유효하지 않은 토큰: " + e.getMessage());
+            log.warn("⛔ 유효하지 않은 JWT: {}", e.getMessage());
             return false;
         }
     }
 
-    public String generateAccessToken(String email) {
+    public String generateAccessToken(String email, List<String> roles) {
         return Jwts.builder()
                 .setSubject(email)
+                .claim("roles", roles)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenValidity)) // 여기 수정
                 .signWith(key, SignatureAlgorithm.HS256) // secretKey → key 로도 수정
