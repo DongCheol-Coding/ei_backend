@@ -38,6 +38,13 @@ jobs:
           scp "$JAR_NAME" ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/app.jar
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
             pkill -f 'java -jar' || true
+
             export JWT_SECRET="${{ secrets.JWT_SECRET }}"
+            export DATABASE_USERNAME="${{ secrets.DATABASE_USERNAME }}"
+            export DATABASE_PASSWORD="${{ secrets.DATABASE_PASSWORD }}"
+            export DRIVER_CLASS_NAME="org.mariadb.jdbc.Driver"
+            export URL="${{ secrets.DATABASE_URL }}"
+
             nohup java -jar /home/ubuntu/app.jar > /home/ubuntu/log.txt 2>&1 &
           EOF
+      

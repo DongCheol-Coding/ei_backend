@@ -27,9 +27,9 @@ public class JwtTokenProvider {
     private final long accessTokenValidity = 30 * 60 * 1000L;  // 30분
     private final long refreshTokenValidity = 14 * 24 * 60 * 60 * 1000L;  // 2주
 
-
     @PostConstruct
     public void init() {
+        log.info("✅ JWT_SECRET Loaded: {}", secretKey);
         this.key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -56,13 +56,13 @@ public class JwtTokenProvider {
     public boolean validateToken(String token) {
         try {
             Jwts.parserBuilder()
-                    .setSigningKey(secretKey)
+                    .setSigningKey(key)
                     .build()
                     .parseClaimsJws(token);
             return true;
         } catch (ExpiredJwtException e) {
             log.warn("⛔ AccessToken 만료됨: {}", e.getMessage());
-            return false; // or throw new CustomException("만료됨");
+            return false;
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("⛔ 유효하지 않은 JWT: {}", e.getMessage());
             return false;
