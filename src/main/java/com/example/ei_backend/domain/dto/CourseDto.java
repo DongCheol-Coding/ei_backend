@@ -7,7 +7,7 @@ public class CourseDto {
 
     @Getter @Setter
     public static class Request {
-        private String name;
+        private String title;
         private String description;
         private MultipartFile image;
     }
@@ -18,7 +18,7 @@ public class CourseDto {
     @Builder
     public static class Response {
         private Long id;
-        private String name;
+        private String title;
         private String description;
         private String imageUrl;
     }

@@ -24,7 +24,7 @@ public class CourseService {
 
         // 2. 엔티티 생성
         Course course = Course.builder()
-                .title(request.getName())
+                .title(request.getTitle())
                 .description(request.getDescription())
                 .imageUrl(imageUrl)
                 .build();
@@ -34,7 +34,7 @@ public class CourseService {
         // 3. 응답 DTO 반환
         return CourseDto.Response.builder()
                 .id(course.getId())
-                .name(course.getTitle())
+                .title(course.getTitle())
                 .description(course.getDescription())
                 .imageUrl(course.getImageUrl())
                 .build();
