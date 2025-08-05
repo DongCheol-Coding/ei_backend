@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private final UserRepository userRepository;
@@ -216,14 +218,24 @@ public class AuthService {
 
         String imageUrl = s3Uploader.upload(file, "profile-images");
 
-        ProfileImage profileImage = ProfileImage.builder()
-                .imageUrl(imageUrl)
-                .user(user)
-                .build();
-        user.updateProfileImage(profileImage);
+        ProfileImage profileImage = user.getProfileImage();
+
+        if (profileImage != null) {
+            // ✅ update 쿼리만 발생
+            profileImage.updateImageUrl(imageUrl);
+        } else {
+            // 처음 등록인 경우
+            ProfileImage newImage = ProfileImage.builder()
+                    .imageUrl(imageUrl)
+                    .build();
+
+            user.setProfileImage(newImage); // 연관관계 설정
+        }
 
         return imageUrl;
     }
+
+
 
     private UserRole parseRole(String role) {
         try {

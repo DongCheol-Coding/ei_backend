@@ -59,7 +59,7 @@ public class User {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private ProfileImage profileImage;
 
     @Builder
@@ -125,16 +125,20 @@ public class User {
                 || (this.phone != null && this.phone.endsWith(phoneSuffix));
     }
 
+    public void updateProfileImage(ProfileImage newImage) {
+        if (this.profileImage != null) {
+            this.profileImage.setUser(null);  //  이 시점에 orphanRemoval 로 delete 발생
+            this.profileImage = null;
+        }
+        this.profileImage = newImage;
+        if (newImage != null) {
+            newImage.setUser(this);
+        }
+    }
+
     public void setProfileImage(ProfileImage profileImage) {
         this.profileImage = profileImage;
         profileImage.setUser(this);
-    }
-
-    public void updateProfileImage(ProfileImage newImage) {
-        if (this.profileImage != null) {
-            this.profileImage.setUser(null);
-        }
-        this.setProfileImage(newImage);
     }
 
 

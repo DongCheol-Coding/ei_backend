@@ -111,14 +111,14 @@ public class AuthController {
     }
 
     @PatchMapping(value = "/profile/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> uploadProfileImage(
+    public ResponseEntity<ApiResponse> uploadProfileImage(
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestPart("image") MultipartFile image
     ) throws IOException {
         String imageUrl = authService.updateProfileImage(principal.getUserId(), image);
 
         // 직접 문자열로 확인
-        return ResponseEntity.ok(imageUrl);
+        return ResponseEntity.ok(ApiResponse.success(imageUrl));
     }
 
 

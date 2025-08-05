@@ -24,4 +24,8 @@ public class ProfileImage {
     public void setUser(User user) {
         this.user = user;
     }
+
+    public void updateImageUrl(String newUrl) {
+        this.imageUrl = newUrl;
+    }
 }
