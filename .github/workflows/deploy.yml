@@ -36,16 +36,24 @@ jobs:
           JAR_NAME=$(find build/libs -name "*.jar" ! -name "*plain.jar" | head -n 1)
           echo "Uploading $JAR_NAME"
           scp "$JAR_NAME" ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/app.jar
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
-          pkill -f 'java -jar' || true
-        
-          export JWT_SECRET="${{ secrets.JWT_SECRET }}"
-          export DATABASE_USERNAME="${{ secrets.DATABASE_USERNAME }}"
-          export DATABASE_PASSWORD="${{ secrets.DATABASE_PASSWORD }}"
-          export DRIVER_CLASS_NAME="org.mariadb.jdbc.Driver"
-          export URL="${{ secrets.URL }}" 
-          
-          nohup java -jar /home/ubuntu/app.jar --server.port=8080 --server.address=0.0.0.0 > log.txt 2>&1 &
+
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            pkill -f 'java -jar' || true
+
+            export JWT_SECRET="$JWT_SECRET"
+            export DATABASE_USERNAME="$DATABASE_USERNAME"
+            export DATABASE_PASSWORD="$DATABASE_PASSWORD"
+            export DRIVER_CLASS_NAME="$DRIVER_CLASS_NAME"
+            export URL="$URL"
+
+            nohup java -jar /home/ubuntu/app.jar --server.port=8080 --server.address=0.0.0.0 > log.txt 2>&1 &
           EOF
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          DRIVER_CLASS_NAME: ${{ secrets.DRIVER_CLASS_NAME }}
+          URL: ${{ secrets.URL }}
+
 
       
