@@ -4,10 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class EiBackendApplicatio {
+public class EiBackendApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(EiBackendApplicatio.class, args);
+        SpringApplication.run(EiBackendApplication.class, args);
     }
 
 }
