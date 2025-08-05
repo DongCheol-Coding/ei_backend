@@ -25,6 +25,8 @@ public class Course {
     @Lob
     private String description;
 
+    private int price;
+
     private String imageUrl;
 
     @CreationTimestamp
