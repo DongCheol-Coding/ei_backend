@@ -43,7 +43,7 @@ jobs:
           export DATABASE_USERNAME="${{ secrets.DATABASE_USERNAME }}"
           export DATABASE_PASSWORD="${{ secrets.DATABASE_PASSWORD }}"
           export DRIVER_CLASS_NAME="org.mariadb.jdbc.Driver"
-          export URL="${{ secrets.DATABASE_URL }}"
+          export URL="${{ secrets.URL }}" 
           
           nohup java -jar /home/ubuntu/app.jar --server.port=8080 --server.address=0.0.0.0 > log.txt 2>&1 &
           EOF
