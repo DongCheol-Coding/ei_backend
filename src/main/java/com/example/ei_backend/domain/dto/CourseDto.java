@@ -9,6 +9,7 @@ public class CourseDto {
     public static class Request {
         private String title;
         private String description;
+        private int price;
         private MultipartFile image;
     }
 
@@ -20,6 +21,7 @@ public class CourseDto {
         private Long id;
         private String title;
         private String description;
+        private int price;
         private String imageUrl;
     }
 }

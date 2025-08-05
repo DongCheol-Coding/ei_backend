@@ -26,6 +26,7 @@ public class CourseService {
         Course course = Course.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
+                .price(request.getPrice())
                 .imageUrl(imageUrl)
                 .build();
 
@@ -36,6 +37,7 @@ public class CourseService {
                 .id(course.getId())
                 .title(course.getTitle())
                 .description(course.getDescription())
+                .price(course.getPrice())
                 .imageUrl(course.getImageUrl())
                 .build();
     }

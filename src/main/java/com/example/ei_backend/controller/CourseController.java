@@ -14,8 +14,8 @@ import java.io.IOException;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/products")
-public class ProductController {
+@RequestMapping("/api/course")
+public class CourseController {
 
     private final CourseService courseService;
 
