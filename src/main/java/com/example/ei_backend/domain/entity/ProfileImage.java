@@ -20,4 +20,8 @@ public class ProfileImage {
     private User user;
 
     private String imageUrl;
+
+    public void setUser(User user) {
+        this.user = user;
+    }
 }

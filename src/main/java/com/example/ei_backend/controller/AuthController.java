@@ -6,13 +6,18 @@ import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.repository.RefreshTokenRepository;
 import com.example.ei_backend.repository.UserRepository;
 import com.example.ei_backend.security.JwtTokenProvider;
+import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.AuthService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import com.example.ei_backend.config.ApiResponse;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 import java.util.List;
 import java.util.Map;
@@ -103,6 +108,16 @@ public class AuthController {
 
         return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
     }
+
+    @PatchMapping("/profile/image")
+    public ResponseEntity<?> uploadProfileImage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestPart("image") MultipartFile image
+    ) throws IOException {
+        String imageUrl = authService.updateProfileImage(principal.getUserId(), image);
+        return ResponseEntity.ok(ApiResponse.success(imageUrl));
+    }
+
 
 
 }

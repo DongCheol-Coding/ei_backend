@@ -1,5 +1,7 @@
 package com.example.ei_backend.security;
 
+import com.example.ei_backend.domain.entity.User;
+import com.example.ei_backend.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,11 +24,14 @@ import java.util.stream.Collectors;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         private final JwtTokenProvider jwtTokenProvider;
+        private final UserRepository userRepository;
 
-        public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
-            this.jwtTokenProvider = jwtTokenProvider;
-            log.info("✅ JwtAuthenticationFilter 생성됨");
-        }
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, UserRepository userRepository) {
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.userRepository = userRepository;
+        log.info("✅ JwtAuthenticationFilter 생성됨");
+    }
+
 
 
     @Override
@@ -42,12 +47,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || path.startsWith("/webjars")
                 || path.equals("/docs")
                 || path.startsWith("/docs/")
-                || path.startsWith("/api/auth") // ✅ signup 포함됨
+                || path.equals("/api/auth/signup")
+                || path.equals("/api/auth/login")
                 || path.startsWith("/oauth2")
                 || path.startsWith("/login/oauth2");
     }
-
-
 
     @Override
         protected void doFilterInternal(HttpServletRequest request,
@@ -71,13 +75,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     String email = jwtTokenProvider.getEmail(token);
                     List<String> roles = jwtTokenProvider.getRoles(token);
 
-                    List<GrantedAuthority> authorities = roles.stream()
-                            .map(SimpleGrantedAuthority::new)
-                            .collect(Collectors.toList());
+                    // ✅ 유저 조회 및 Principal 생성
+                    User user = userRepository.findByEmail(email)
+                            .orElseThrow(() -> new RuntimeException("유저를 찾을 수 없습니다"));
 
+                    UserPrincipal userPrincipal = new UserPrincipal(user);
 
                     UsernamePasswordAuthenticationToken auth =
-                            new UsernamePasswordAuthenticationToken(email, null, authorities);
+                            new UsernamePasswordAuthenticationToken(userPrincipal, null,
+                                    roles.stream().map(SimpleGrantedAuthority::new).toList());
 
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(auth);
@@ -91,6 +97,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.clearContext();
             }
 
-            filterChain.doFilter(request, response);
-        }
+        filterChain.doFilter(request, response);
     }
+}
