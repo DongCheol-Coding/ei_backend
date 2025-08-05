@@ -218,6 +218,7 @@ public class AuthService {
 
         ProfileImage profileImage = ProfileImage.builder()
                 .imageUrl(imageUrl)
+                .user(user)
                 .build();
         user.updateProfileImage(profileImage);
 
