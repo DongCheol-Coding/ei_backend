@@ -1,4 +1,4 @@
-# 📚 DongCheol-Coding Backend
+# 📚 DongCheol-Coding Backend.
 
 > 이 프로젝트는 회원가입, 소셜 로그인, 강의 수강, 실습 체크, 실시간 채팅 기능 등을 포함한 **교육 플랫폼 백엔드 API**입니다.
 
