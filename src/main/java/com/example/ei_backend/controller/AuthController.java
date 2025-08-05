@@ -11,6 +11,7 @@ import com.example.ei_backend.service.AuthService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -109,15 +110,16 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
     }
 
-    @PatchMapping("/profile/image")
+    @PatchMapping(value = "/profile/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadProfileImage(
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestPart("image") MultipartFile image
     ) throws IOException {
         String imageUrl = authService.updateProfileImage(principal.getUserId(), image);
-        return ResponseEntity.ok(ApiResponse.success(imageUrl));
-    }
 
+        // 직접 문자열로 확인
+        return ResponseEntity.ok(imageUrl);
+    }
 
 
 }
