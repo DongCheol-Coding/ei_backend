@@ -13,6 +13,7 @@
 - **Gradle**
 - **MapStruct**
 - **Lombok**
+- **EmailSender**
 - **Amazon S3 (이미지 업로드)**
 - **Amazon RDS (MariaDB)**
 - **GitHub Actions + EC2 (CI/CD)**
