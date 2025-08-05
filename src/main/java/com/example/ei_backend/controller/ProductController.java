@@ -17,13 +17,13 @@ import java.io.IOException;
 @RequestMapping("/api/products")
 public class ProductController {
 
-    private final CourseService productService;
+    private final CourseService courseService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CourseDto.Response> createProduct(
             @ModelAttribute CourseDto.Request request
     ) throws IOException {
-        CourseDto.Response response = productService.createProduct(request);
+        CourseDto.Response response = courseService.createProduct(request);
         return ResponseEntity.ok(response);
     }
 }
