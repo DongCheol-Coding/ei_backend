@@ -29,8 +29,15 @@ public class JwtTokenProvider {
 
     @PostConstruct
     public void init() {
-        log.info("✅ JWT_SECRET Loaded: {}", secretKey);
+        // 환경변수에서 직접 불러오기
+        String envSecret = System.getenv("JWT_SECRET");
+        if (envSecret == null || envSecret.isBlank()) {
+            throw new IllegalStateException("❌ 환경변수 JWT_SECRET가 설정되지 않았습니다.");
+        }
+
+        this.secretKey = envSecret;
         this.key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+        log.info("✅ JWT_SECRET Loaded from ENV: {}", secretKey);
     }
 
     @SuppressWarnings("unchecked")
