@@ -1,10 +1,12 @@
 package com.example.ei_backend.service;
 
+import com.example.ei_backend.aws.S3Uploader;
 import com.example.ei_backend.domain.ErrorCode;
 import com.example.ei_backend.domain.UserRole;
 import com.example.ei_backend.domain.dto.UserDto;
 import com.example.ei_backend.domain.email.EmailSender;
 import com.example.ei_backend.domain.entity.EmailVerification;
+import com.example.ei_backend.domain.entity.ProfileImage;
 import com.example.ei_backend.domain.entity.RefreshToken;
 import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.exception.CustomException;
@@ -22,7 +24,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -44,6 +48,7 @@ public class AuthService {
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule()) // LocalDate, LocalDateTime 직렬화 지원
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS); // 날짜를 ISO 8601 형식으로 출력
+    private final S3Uploader s3Uploader;
 
     @Value("${app.client.host}")
     private String clientHost;
@@ -202,6 +207,21 @@ public class AuthService {
 
         return stream.toList();
 
+    }
+
+    @Transactional
+    public String updateProfileImage(Long userId, MultipartFile file) throws IOException {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자 없음"));
+
+        String imageUrl = s3Uploader.upload(file, "profile-images");
+
+        ProfileImage profileImage = ProfileImage.builder()
+                .imageUrl(imageUrl)
+                .build();
+        user.updateProfileImage(profileImage);
+
+        return imageUrl;
     }
 
     private UserRole parseRole(String role) {

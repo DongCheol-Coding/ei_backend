@@ -59,6 +59,9 @@ public class User {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private ProfileImage profileImage;
+
     @Builder
     public User(String email, String password, String name) {
         this.email = email;
@@ -120,6 +123,18 @@ public class User {
     public boolean matchesAny(String name, String phoneSuffix) {
         return (this.name != null && this.name.equals(name))
                 || (this.phone != null && this.phone.endsWith(phoneSuffix));
+    }
+
+    public void setProfileImage(ProfileImage profileImage) {
+        this.profileImage = profileImage;
+        profileImage.setUser(this);
+    }
+
+    public void updateProfileImage(ProfileImage newImage) {
+        if (this.profileImage != null) {
+            this.profileImage.setUser(null);
+        }
+        this.setProfileImage(newImage);
     }
 
 
