@@ -18,7 +18,7 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
                 .status(200)
-                .message("ApiResponse 응답")
+                .message("ApiResponse")
                 .data(data)
                 .build();
     }

@@ -21,6 +21,8 @@ public class TestAdminDataLoader implements CommandLineRunner {
     public void run(String... args) {
         createAdmin("admin1@test.com", "관리자1");
         createAdmin("admin2@test.com", "관리자2");
+        createMember("member1@test.com", "회원1");
+        createMember("member2@test.com", "회원2");
     }
 
     private void createAdmin(String email, String name) {
@@ -28,11 +30,25 @@ public class TestAdminDataLoader implements CommandLineRunner {
 
         User user = User.builder()
                 .email(email)
-                .password(passwordEncoder.encode("admin123"))
+                .password(passwordEncoder.encode("admin123!"))
                 .name(name)
                 .isSocial(false)
                 .isDeleted(false)
-                .roles(Set.of(UserRole.ROLE_ADMIN)) // enum 기반
+                .roles(Set.of(UserRole.ROLE_ADMIN))
+                .build();
+        userRepository.save(user);
+    }
+
+    private void createMember(String email, String name) {
+        if (userRepository.existsByEmail(email)) return;
+
+        User user = User.builder()
+                .email(email)
+                .password(passwordEncoder.encode("member123!"))
+                .name(name)
+                .isSocial(false)
+                .isDeleted(false)
+                .roles(Set.of(UserRole.ROLE_MEMBER))
                 .build();
         userRepository.save(user);
     }

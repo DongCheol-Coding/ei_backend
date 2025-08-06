@@ -36,6 +36,6 @@ public class GlobalApiResponseAdvice implements ResponseBodyAdvice<Object> {
             return body;
         }
 
-        return new ApiResponse<>(HttpStatus.OK.value(), "응답 성공", body);
+        return new ApiResponse<>(HttpStatus.OK.value(), "ApiResponse 응답", body);
     }
 }

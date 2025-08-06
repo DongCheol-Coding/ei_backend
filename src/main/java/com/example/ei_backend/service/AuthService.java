@@ -3,6 +3,9 @@ package com.example.ei_backend.service;
 import com.example.ei_backend.aws.S3Uploader;
 import com.example.ei_backend.domain.ErrorCode;
 import com.example.ei_backend.domain.UserRole;
+import com.example.ei_backend.domain.dto.CourseProgressDto;
+import com.example.ei_backend.domain.dto.MyPageResponseDto;
+import com.example.ei_backend.domain.dto.PaymentDto;
 import com.example.ei_backend.domain.dto.UserDto;
 import com.example.ei_backend.domain.email.EmailSender;
 import com.example.ei_backend.domain.entity.EmailVerification;
@@ -30,6 +33,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -248,6 +252,24 @@ public class AuthService {
 
         user.setProfileImage(null);
     }
+
+    public MyPageResponseDto getMyPageInfo(User user) {
+        // UserDto 생성
+        UserDto.Response userDto = userMapper.toResponse(user);
+
+        // 결제 내역은 아직 없으므로 빈 리스트로 초기화
+        List<PaymentDto> paymentDtos = new ArrayList<>();
+
+        // 강의 진행률도 마찬가지
+        List<CourseProgressDto> courseProgressDtos = new ArrayList<>();
+
+        return MyPageResponseDto.builder()
+                .user(userDto)
+                .payments(paymentDtos)
+                .coursesProgress(courseProgressDtos)
+                .build();
+    }
+
 
 
 

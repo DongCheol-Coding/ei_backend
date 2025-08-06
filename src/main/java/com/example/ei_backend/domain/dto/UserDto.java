@@ -50,6 +50,9 @@ public class UserDto {
         private String email;
         private String name;
         private String token;
+        private String phone;
+        private String birthDate;
+        private String imageUrl;
         private Set<UserRole> roles;
 
         private String message;
