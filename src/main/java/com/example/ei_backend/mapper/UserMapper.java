@@ -18,6 +18,9 @@ public interface UserMapper {
 
     // 사용자 응답용 DTO
     @Mapping(source = "roles", target = "roles")
+    @Mapping(source = "phone", target = "phone")
+    @Mapping(source = "birthDate", target = "birthDate")
+    @Mapping(target = "imageUrl", expression = "java(user.getProfileImage() != null ? user.getProfileImage().getImageUrl() : null)")
     UserDto.Response toResponse(User user);
 
 

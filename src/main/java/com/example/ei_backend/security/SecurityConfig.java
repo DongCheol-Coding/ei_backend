@@ -1,5 +1,6 @@
 package com.example.ei_backend.security;
 
+import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.oauth2.CustomOAuth2FailureHandler;
 import com.example.ei_backend.oauth2.CustomOAuth2UserService;
 import com.example.ei_backend.oauth2.OAuth2SuccessHandler;
@@ -16,6 +17,8 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.endpoint.*;
@@ -134,4 +137,14 @@ public class SecurityConfig {
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
+
+    @Bean
+    public UserDetailsService userDetailsService(UserRepository userRepository) {
+        return username -> {
+            User user = userRepository.findByEmail(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + username));
+            return new UserDetailsImpl(user);
+        };
+    }
+
 }
