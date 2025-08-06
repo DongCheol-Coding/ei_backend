@@ -20,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 
+import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 
@@ -120,6 +121,13 @@ public class AuthController {
         // 직접 문자열로 확인
         return ResponseEntity.ok(ApiResponse.success(imageUrl));
     }
+
+    @DeleteMapping("/profile/image")
+    public ResponseEntity<ApiResponse<?>> deleteProfileImage(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        authService.deleteProfileImage(userPrincipal.getUserId());
+        return ResponseEntity.ok(ApiResponse.success("프로필 이미지가 삭제되었습니다."));
+    }
+
 
 
 }
