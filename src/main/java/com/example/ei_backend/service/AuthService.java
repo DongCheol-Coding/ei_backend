@@ -217,14 +217,13 @@ public class AuthService {
                 .orElseThrow(() -> new IllegalArgumentException("사용자 없음"));
 
         String imageUrl = s3Uploader.upload(file, "profile-images");
-
         ProfileImage profileImage = user.getProfileImage();
 
         if (profileImage != null) {
-            // ✅ update 쿼리만 발생
+            //  update 쿼리만 발생
             profileImage.updateImageUrl(imageUrl);
         } else {
-            // 처음 등록인 경우
+            // 처음 등록인 경우 새로 생성
             ProfileImage newImage = ProfileImage.builder()
                     .imageUrl(imageUrl)
                     .build();
@@ -233,6 +232,21 @@ public class AuthService {
         }
 
         return imageUrl;
+    }
+
+    @Transactional
+    public void deleteProfileImage(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException(("사용자 없음")));
+
+        ProfileImage profileImage = user.getProfileImage();
+        if (profileImage == null) {
+            throw new IllegalStateException("프로필 이미지 없음");
+        }
+
+        s3Uploader.delete(profileImage.getImageUrl());
+
+        user.setProfileImage(null);
     }
 
 

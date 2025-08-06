@@ -137,8 +137,11 @@ public class User {
     }
 
     public void setProfileImage(ProfileImage profileImage) {
+        //  null인 경우 setUser 호출하지 않도록 조건 분기
+        if (profileImage != null) {
+            profileImage.setUser(this);
+        }
         this.profileImage = profileImage;
-        profileImage.setUser(this);
     }
 
 
