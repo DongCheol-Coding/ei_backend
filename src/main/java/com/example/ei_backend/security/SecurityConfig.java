@@ -65,7 +65,8 @@ public class SecurityConfig {
                                 "/docs/**",
                                 "/api/auth/**",           // 로그인 등
                                 "/oauth2/**",
-                                "/login/oauth2/**"
+                                "/login/oauth2/**",
+                                "/actuator/health"
                         ).permitAll()
                         .requestMatchers("/api/s3/upload").authenticated()
                         .anyRequest().authenticated()

@@ -63,6 +63,9 @@ dependencies {
 
     implementation 'ch.qos.logback:logback-classic:1.4.14'
 
+    //actuator/health 엔드포인트 
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
 }
 
 tasks.named('test') {
