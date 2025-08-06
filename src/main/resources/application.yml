@@ -97,7 +97,13 @@ springdoc:
     display-request-duration: true
 
 management:
+  server:
+    port:
   endpoints:
     web:
+      base-path: /actuator
       exposure:
         include: health
+  endpoint:
+    health:
+      show-details: always
