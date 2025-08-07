@@ -1,6 +1,10 @@
 package com.example.ei_backend.controller;
 
-import com.example.ei_backend.domain.dto.*;
+import com.example.ei_backend.config.ApiResponse;
+import com.example.ei_backend.domain.dto.ChangePasswordRequestDto;
+import com.example.ei_backend.domain.dto.DeleteAccountRequestDto;
+import com.example.ei_backend.domain.dto.TokenResponseDto;
+import com.example.ei_backend.domain.dto.UserDto;
 import com.example.ei_backend.domain.entity.RefreshToken;
 import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.repository.RefreshTokenRepository;
@@ -8,19 +12,15 @@ import com.example.ei_backend.repository.UserRepository;
 import com.example.ei_backend.security.JwtTokenProvider;
 import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.AuthService;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import com.example.ei_backend.config.ApiResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-
-import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 
