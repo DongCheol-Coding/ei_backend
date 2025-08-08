@@ -65,6 +65,7 @@ jobs:
           CLIENT_HOST="${{ secrets.CLIENT_HOST }}" \
           AWS_ACCESS_KEY="${{ secrets.AWS_ACCESS_KEY }}" \
           AWS_SECRET_KEY="${{ secrets.AWS_SECRET_KEY }}" \
+          BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
           java -jar /home/ubuntu/app.jar \
           --server.port=8080 --server.address=0.0.0.0 > log.txt 2>&1 &
         
@@ -90,5 +91,6 @@ jobs:
           CLIENT_HOST: ${{ secrets.CLIENT_HOST }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
           AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+          BUCKET_NAME: ${{ secrets.BUCKET_NAME }}
 
 
