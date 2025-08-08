@@ -107,3 +107,14 @@ management:
   endpoint:
     health:
       show-details: always
+
+kakaopay:
+  api:
+    cid: TC0ONETIME
+    secret:
+      key: ${KAKAO_SECRET_KEY}
+    approval-url: http://3.37.253.185/api/payment/approve
+    cancel-url: http://3.37.253.185/api/payment/cancel
+    fail-url: http://3.37.253.185/api/payment/fail
+
+

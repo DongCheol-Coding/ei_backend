@@ -17,7 +17,7 @@ public class CustomOAuth2FailureHandler implements AuthenticationFailureHandler 
     public void onAuthenticationFailure(HttpServletRequest request,
                                         HttpServletResponse response,
                                         AuthenticationException exception) throws IOException {
-        log.error("[OAuth2 실패] {}", exception.getMessage(), exception); // 🔥 정확한 실패 원인 확인
+        log.error("[OAuth2 실패] {}", exception.getMessage(), exception);
 
         response.setContentType("application/json");
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

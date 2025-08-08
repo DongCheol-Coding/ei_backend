@@ -42,4 +42,10 @@ public class CourseService {
                 .build();
     }
 
+    @Transactional
+    public Course findById(Long courseId) {
+        return courseRepository.findById(courseId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 강의입니다."));
+    }
+
 }
