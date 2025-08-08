@@ -160,7 +160,8 @@ public class SecurityConfig {
         // ✅ 허용할 프론트엔드 Origin만 명시
         config.setAllowedOrigins(java.util.List.of(
                 "http://localhost:5173",
-                "https://www.dongcheolcoding.life"
+                "https://www.dongcheolcoding.life",
+                "https://dongcheolcoding.life"
         ));
 
         config.setAllowedMethods(java.util.List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
