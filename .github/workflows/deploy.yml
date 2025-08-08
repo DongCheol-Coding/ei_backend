@@ -52,29 +52,31 @@ jobs:
 
           echo "🔁 EC2 애플리케이션 재시작 중..."
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
-            pkill -f 'java -jar' || true
-
-            echo "🔐 환경변수 설정 및 앱 실행..."
-            nohup env \
-              JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-              KAKAO_SECRET_KEY="${{ secrets.KAKAO_SECRET_KEY }}" \
-              DATABASE_USERNAME="${{ secrets.DATABASE_USERNAME }}" \
-              DATABASE_PASSWORD="${{ secrets.DATABASE_PASSWORD }}" \
-              DRIVER_CLASS_NAME="${{ secrets.DRIVER_CLASS_NAME }}" \
-              URL="${{ secrets.URL }}" \
-              java -jar /home/ubuntu/app.jar \
-              --server.port=8080 --server.address=0.0.0.0 > log.txt 2>&1 &
-
-            echo "⏳ 서버 시작 대기 중..."
-            sleep 10
-
-            echo "📄 로그 확인 시도..."
-            if [ -f log.txt ]; then
-              tail -n 20 log.txt || echo "❌ 로그 파일 tail 실패"
-            else
-              echo "❌ log.txt 파일 없음 (앱 실행 실패 가능성)"
-            fi
+          pkill -f 'java -jar' || true
+        
+          echo "🔐 환경변수 설정 및 앱 실행..."
+          nohup env \
+          JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+          KAKAO_SECRET_KEY="${{ secrets.KAKAO_SECRET_KEY }}" \
+          DATABASE_USERNAME="${{ secrets.DATABASE_USERNAME }}" \
+          DATABASE_PASSWORD="${{ secrets.DATABASE_PASSWORD }}" \
+          DRIVER_CLASS_NAME="${{ secrets.DRIVER_CLASS_NAME }}" \
+          URL="${{ secrets.URL }}" \
+          CLIENT_HOST="${{ secrets.CLIENT_HOST }}" \
+          java -jar /home/ubuntu/app.jar \
+          --server.port=8080 --server.address=0.0.0.0 > log.txt 2>&1 &
+        
+          echo "⏳ 서버 시작 대기 중..."
+          sleep 10
+        
+          echo "📄 로그 확인 시도..."
+          if [ -f log.txt ]; then
+          tail -n 20 log.txt || echo "❌ 로그 파일 tail 실패"
+          else
+          echo "❌ log.txt 파일 없음 (앱 실행 실패 가능성)"
+          fi
           EOF
+
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           KAKAO_SECRET_KEY: ${{ secrets.KAKAO_SECRET_KEY }}
@@ -82,3 +84,5 @@ jobs:
           DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
           DRIVER_CLASS_NAME: ${{ secrets.DRIVER_CLASS_NAME }}
           URL: ${{ secrets.URL }}
+          CLIENT_HOST: ${{ secrets.CLIENT_HOST }}
+
