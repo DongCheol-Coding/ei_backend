@@ -63,6 +63,8 @@ jobs:
           DRIVER_CLASS_NAME="${{ secrets.DRIVER_CLASS_NAME }}" \
           URL="${{ secrets.URL }}" \
           CLIENT_HOST="${{ secrets.CLIENT_HOST }}" \
+          AWS_ACCESS_KEY="${{ secrets.AWS_ACCESS_KEY }}" \
+          AWS_SECRET_KEY="${{ secrets.AWS_SECRET_KEY }}" \
           java -jar /home/ubuntu/app.jar \
           --server.port=8080 --server.address=0.0.0.0 > log.txt 2>&1 &
         
@@ -77,6 +79,7 @@ jobs:
           fi
           EOF
 
+
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           KAKAO_SECRET_KEY: ${{ secrets.KAKAO_SECRET_KEY }}
@@ -85,4 +88,7 @@ jobs:
           DRIVER_CLASS_NAME: ${{ secrets.DRIVER_CLASS_NAME }}
           URL: ${{ secrets.URL }}
           CLIENT_HOST: ${{ secrets.CLIENT_HOST }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+
 
