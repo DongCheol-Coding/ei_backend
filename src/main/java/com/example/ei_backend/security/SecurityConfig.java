@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.RequestEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -26,6 +27,9 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
@@ -56,7 +60,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 )
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/",                      // 루트
                                 "/swagger-ui/**",         // Swagger UI 리소스
@@ -146,6 +152,26 @@ public class SecurityConfig {
                     .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + username));
             return new UserDetailsImpl(user);
         };
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        // ✅ 허용할 프론트엔드 Origin만 명시
+        config.setAllowedOrigins(java.util.List.of(
+                "http://localhost:5173",
+                "https://www.dongcheolcoding.life"
+        ));
+
+        config.setAllowedMethods(java.util.List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
+        config.setAllowedHeaders(java.util.List.of("*"));          // Authorization 등 모든 요청 헤더 허용
+        config.setExposedHeaders(java.util.List.of("Authorization","Location")); // JS에서 읽을 응답 헤더
+        config.setAllowCredentials(true);                           // 쿠키/자격증명 사용 시 필수
+        config.setMaxAge(3600L);                                    // preflight 캐시
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+
     }
 
 }
