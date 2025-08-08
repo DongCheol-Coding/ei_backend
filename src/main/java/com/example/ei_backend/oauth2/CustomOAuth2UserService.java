@@ -28,7 +28,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
         try {
             OAuth2User oAuth2User = new DefaultOAuth2UserService().loadUser(userRequest);
             Map<String, Object> attributes = oAuth2User.getAttributes();
-            log.info("OAuth2 attributes: {}", attributes); // ✅ 여기 먼저 확인
+            log.info("OAuth2 attributes: {}", attributes); //
 
             Map<String, Object> kakaoAccount = (Map<String, Object>) attributes.get("kakao_account");
             String email = (String) kakaoAccount.get("email");

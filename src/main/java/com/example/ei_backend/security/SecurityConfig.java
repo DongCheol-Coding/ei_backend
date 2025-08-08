@@ -110,6 +110,7 @@ public class SecurityConfig {
         return http.build();
     }
 
+
     /**
      * ✅ Spring Security 6.5+ 대응용 Kakao Token Client 설정
      */
