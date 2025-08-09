@@ -44,7 +44,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
                             .build()));
 
             return new CustomOAuth2User(
-                    Collections.singleton(new SimpleGrantedAuthority("ROLE_USER")),
+                    Collections.singleton(new SimpleGrantedAuthority("ROLE_MEMBER")),
                     attributes,
                     "id",
                     user

@@ -29,7 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, UserRepository userRepository) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userRepository = userRepository;
-        log.info("✅ JwtAuthenticationFilter 생성됨");
+        log.info(" JwtAuthenticationFilter 생성됨");
     }
 
 
@@ -61,12 +61,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 throws ServletException, IOException {
 
             log.info(" JwtAuthenticationFilter 실행됨: {}", request.getRequestURI());
-            log.info("✅ doFilterInternal 호출됨");
+            log.info(" doFilterInternal 호출됨");
 
             String header = request.getHeader("Authorization");
 
             if (shouldNotFilter(request)) {
-                log.info("⛔ shouldNotFilter: 필터 제외됨");
+                log.info(" shouldNotFilter: 필터 제외됨");
                 filterChain.doFilter(request, response);
                 return;
         }
@@ -88,7 +88,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(auth);
-                    log.info("✅ 인증 완료: {}", email);
+                    log.info(" 인증 완료: {}", email);
                 } else {
                     log.info("토큰 유효하지 않음");
                     SecurityContextHolder.clearContext();

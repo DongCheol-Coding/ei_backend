@@ -14,12 +14,12 @@ public interface UserMapper {
     @Mapping(target = "isSocial", constant = "false")
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "phone", source = "phone")
     User toEntity(UserDto.Request dto);
 
     // 사용자 응답용 DTO
     @Mapping(source = "roles", target = "roles")
     @Mapping(source = "phone", target = "phone")
-    @Mapping(source = "birthDate", target = "birthDate")
     @Mapping(target = "imageUrl", expression = "java(user.getProfileImage() != null ? user.getProfileImage().getImageUrl() : null)")
     UserDto.Response toResponse(User user);
 

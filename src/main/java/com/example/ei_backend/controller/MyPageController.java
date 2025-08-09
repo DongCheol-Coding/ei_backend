@@ -2,7 +2,6 @@ package com.example.ei_backend.controller;
 
 import com.example.ei_backend.config.ApiResponse;
 import com.example.ei_backend.domain.dto.MyPageResponseDto;
-import com.example.ei_backend.security.UserDetailsImpl;
 import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -21,11 +20,11 @@ public class MyPageController {
     private final AuthService authService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ROLE_MEMBER')")
+    @PreAuthorize("hasRole('MEMBER')")
     public ResponseEntity<ApiResponse<MyPageResponseDto>> getMyPageInfo(
-            @AuthenticationPrincipal UserPrincipal userDetails) {
-        MyPageResponseDto responseDto = authService.getMyPageInfo(userDetails.getUser());
-        return ResponseEntity.ok(ApiResponse.success(responseDto));
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        MyPageResponseDto dto = authService.getMyPageInfo(userPrincipal.getUser());
+        return ResponseEntity.ok(ApiResponse.ok(dto));
     }
-
 }

@@ -1,7 +1,9 @@
 package com.example.ei_backend.controller;
 
+import com.example.ei_backend.config.ApiResponse;
 import com.example.ei_backend.domain.dto.KakaoPayReadyResponseDto;
 import com.example.ei_backend.domain.entity.Course;
+import com.example.ei_backend.exception.ErrorCode;
 import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.CourseService;
 import com.example.ei_backend.service.KakaoPayService;
@@ -19,41 +21,45 @@ public class PaymentController {
     private final KakaoPayService kakaoPayService;
     private final CourseService courseService;
 
+    /** 1) 결제 준비 */
     @PostMapping("/ready")
-    public ResponseEntity<?> createPayment(
-            @RequestParam Long courseId, // ✅ 진짜 courseId 받기
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
-
+    public ResponseEntity<ApiResponse<String>> createPayment(
+            @RequestParam Long courseId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
         String userEmail = userPrincipal.getUsername();
-        Course course = courseService.findById(courseId); // ✅ 전달받은 courseId로 조회
 
-        KakaoPayReadyResponseDto response = kakaoPayService.ready(course, userEmail);
-        return ResponseEntity.ok(response.getNextRedirectPcUrl());
+        // 코스 조회 실패 시 서비스에서 CustomException(ErrorCode.COURSE_NOT_FOUND) 던진다고 가정
+        Course course = courseService.findById(courseId);
+
+        KakaoPayReadyResponseDto ready = kakaoPayService.ready(course, userEmail);
+        return ResponseEntity.ok(ApiResponse.ok(ready.getNextRedirectPcUrl()));
     }
 
-
-    // ✅ 2. 결제 승인
+    /** 2) 결제 승인 (카카오 콜백) */
     @GetMapping("/approve")
-    public ResponseEntity<?> approvePayment(
-            @RequestParam String pg_token,
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
-
-        String result = kakaoPayService.approve(pg_token, userPrincipal.getUsername());
-        return ResponseEntity.ok(result);
+    public ResponseEntity<ApiResponse<String>> approvePayment(
+            @RequestParam("pg_token") String pgToken,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        // 실패 시 서비스에서 CustomException(ErrorCode.PAYMENT_FAILED) 등 던지기
+        String resultMessage = kakaoPayService.approve(pgToken, userPrincipal.getUsername());
+        return ResponseEntity.ok(ApiResponse.ok(resultMessage));
     }
 
-
-    // ✅ 3. 결제 취소
+    /** 3) 결제 취소 */
     @GetMapping("/cancel")
-    public ResponseEntity<?> cancelPayment() {
-        return ResponseEntity.badRequest().body("결제가 취소되었습니다.");
+    public ResponseEntity<ApiResponse<Void>> cancelPayment() {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.fail(ErrorCode.PAYMENT_FAILED, "결제가 취소되었습니다."));
     }
 
-    // ✅ 4. 결제 실패
+
+    /** 4) 결제 실패 */
+
     @GetMapping("/fail")
-    public ResponseEntity<?> failPayment() {
+    public ResponseEntity<ApiResponse<Void>> failPayment() {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("결제에 실패하였습니다.");
+                .body(ApiResponse.fail(ErrorCode.SERVER_ERROR, "결제에 실패하였습니다."));
     }
-
 }
