@@ -5,6 +5,5 @@ import lombok.Setter;
 
 @Getter @Setter
 public class ChangePasswordRequestDto {
-    private Long userId;
     private String newPassword;
 }

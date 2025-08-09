@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ApiResponse<T> {
 
-    private int status;        // ✅ HTTP 상태 코드
+    private int status;        // HTTP 상태 코드
     private boolean success;   // 성공 여부
     private String code;       // 비즈니스 코드 (e.g. S000, E401)
     private String message;    // 사용자/개발자 메시지
@@ -21,9 +21,8 @@ public class ApiResponse<T> {
 
     public static <T> ApiResponse<T> ok(T data) {
         return ApiResponse.<T>builder()
-                .status(200) // ✅ 기본 200 OK
+                .status(200)
                 .success(true)
-                .code("S000")
                 .message("OK")
                 .data(data)
                 .build();

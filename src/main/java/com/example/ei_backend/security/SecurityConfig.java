@@ -1,6 +1,8 @@
 package com.example.ei_backend.security;
 
 import com.example.ei_backend.domain.entity.User;
+import com.example.ei_backend.exception.JsonAccessDeniedHandler;
+import com.example.ei_backend.exception.JsonAuthenticationEntryPoint;
 import com.example.ei_backend.oauth2.CustomOAuth2FailureHandler;
 import com.example.ei_backend.oauth2.CustomOAuth2UserService;
 import com.example.ei_backend.oauth2.OAuth2SuccessHandler;
@@ -43,6 +45,9 @@ public class SecurityConfig {
     private final CustomOAuth2FailureHandler customOAuth2FailureHandler;
     private final UserRepository userRepository;
 
+    private final JsonAuthenticationEntryPoint jsonAuthenticationEntryPoint;
+    private final JsonAccessDeniedHandler jsonAccessDeniedHandler;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -60,62 +65,47 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 )
+                //Saved request 캐시 끄기 (불필요한 세션 저장/리다이렉트 방지)
+                .requestCache(c -> c.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
-                                "/",                      // 루트
-                                "/swagger-ui/**",         // Swagger UI 리소스
-                                "/v3/api-docs/**",        // Swagger JSON
-                                "/swagger-resources/**",  // Swagger 리소스
-                                "/webjars/**",            // JS/CSS
-                                "/swagger-ui.html",       // 옛 주소
-                                "/docs",                  // springdoc의 경로
-                                "/docs/**",
-                                "/api/auth/**",           // 로그인 등
-                                "/oauth2/**",
-                                "/login/oauth2/**",
+                                "/", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**",
+                                "/webjars/**", "/swagger-ui.html", "/docs", "/docs/**",
+                                // 공개 엔드포인트만 지정
+                                "/api/auth/login",
+                                "/api/auth/signup",
+                                "/api/auth/reissue",
+                                "/api/auth/verify/**",
+                                "/oauth2/**", "/login/oauth2/**",
                                 "/actuator/health"
                         ).permitAll()
+                        // 프로필 이미지는 인증 필수
+                        .requestMatchers(HttpMethod.PATCH,  "/api/auth/profile/image").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/auth/profile/image").authenticated()
                         .requestMatchers("/api/s3/upload").authenticated()
                         .anyRequest().authenticated()
                 )
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            String accept = request.getHeader("Accept");
 
-                            if (accept != null && accept.contains("text/html")) {
-                                // Swagger UI와 같은 HTML 요청은 리디렉션 또는 허용
-                                response.sendRedirect("/swagger-ui/index.html"); // 또는 "/docs" 사용 시 "/docs/index.html"
-                            } else {
-                                // 일반 API 요청은 JSON 에러 응답
-                                response.setContentType("application/json;charset=UTF-8");
-                                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                                response.getWriter().write("{\"error\": \"Unauthorized\"}");
-                            }
-                        })
-                        .accessDeniedHandler((request, response, accessDeniedException) -> {
-                            response.setContentType("application/json;charset=UTF-8");
-                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                            response.getWriter().write("{\"error\": \"Forbidden\"}");
-                        })
+                // ✅ 401/403을 ApiResponse JSON으로 통일
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(jsonAuthenticationEntryPoint)
+                        .accessDeniedHandler(jsonAccessDeniedHandler)
                 )
+
                 .oauth2Login(oauth2 -> oauth2
-                        .tokenEndpoint(token -> token
-                                .accessTokenResponseClient(accessTokenResponseClient())
-                        )
-                        .userInfoEndpoint(userInfo -> userInfo
-                                .userService(oAuth2UserService)
-                        )
+                        .tokenEndpoint(token -> token.accessTokenResponseClient(accessTokenResponseClient()))
+                        .userInfoEndpoint(userInfo -> userInfo.userService(oAuth2UserService))
                         .successHandler(oAuth2SuccessHandler)
                         .failureHandler(customOAuth2FailureHandler)
                 )
+
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
                         UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
-
 
     /**
      * ✅ Spring Security 6.5+ 대응용 Kakao Token Client 설정
