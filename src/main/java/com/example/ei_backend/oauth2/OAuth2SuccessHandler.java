@@ -1,10 +1,12 @@
 package com.example.ei_backend.oauth2;
 
+import com.example.ei_backend.config.ApiResponse;
 import com.example.ei_backend.domain.entity.RefreshToken;
 import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.repository.RefreshTokenRepository;
 import com.example.ei_backend.repository.UserRepository;
 import com.example.ei_backend.security.JwtTokenProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException {
@@ -34,13 +38,11 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             return;
         }
 
-        User user = customUser.getUser(); // 이미 User 객체로 감싸져 있음
+        User user = customUser.getUser();
 
         String accessToken = jwtTokenProvider.generateAccessToken(
                 user.getEmail(),
-                user.getRoles().stream()
-                        .map(Enum::name) // 혹은 UserRole::name
-                        .toList()
+                user.getRoles().stream().map(Enum::name).toList()
         );
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
 
@@ -51,15 +53,15 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                         .build()
         );
 
-        log.info("[OAuth2SuccessHandler] 카카오 소셜로그인 접근");
-        log.info("User email: {}", user.getEmail());
-        log.info("User name: {}", user.getName());
+        log.info("[OAuth2SuccessHandler] 카카오 소셜로그인 성공 - {}", user.getEmail());
 
-// 응답
+        //  ApiResponse 포맷으로 응답
+        record Tokens(String accessToken, String refreshToken) {}
+        ApiResponse<Tokens> body = ApiResponse.ok(new Tokens(accessToken, refreshToken));
+
+        response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write(
-                "{ \"accessToken\": \"" + accessToken + "\", \"refreshToken\": \"" + refreshToken + "\" }"
-        );
-
+        response.setHeader("Cache-Control", "no-store");
+        response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 }
