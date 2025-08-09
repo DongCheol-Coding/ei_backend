@@ -69,8 +69,12 @@ public class AuthController {
 
     /** 비밀번호 변경 */
     @PatchMapping("/password")
-    public ResponseEntity<ApiResponse<Void>> changePassword(@RequestBody ChangePasswordRequestDto request) {
-        authService.changePassword(request.getUserId(), request.getNewPassword());
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @RequestBody ChangePasswordRequestDto request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal //  로그인 사용자 주입
+    ) {
+        Long userId = userPrincipal.getUserId();              //  토큰에서 복원된 본인 ID
+        authService.changePassword(userId, request.getNewPassword());
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
