@@ -24,17 +24,17 @@ public class AdminUserController {
     private final UserMapper userMapper;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ROLE_SUPPORT', 'ROLE_ADMIN')")
-    public ResponseEntity<?> searchUsers (
+    @PreAuthorize("hasAnyRole('SUPPORT', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<UserDto.Response>>> searchUsers(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String phoneSuffix,
             @RequestParam(required = false) String role
-
     ) {
         List<User> users = authService.searchUser(name, phoneSuffix, role);
-        List<UserDto.Response> response = users.stream()
+        List<UserDto.Response> body = users.stream()
                 .map(userMapper::toResponse)
                 .toList();
-        return ResponseEntity.ok(ApiResponse.success(response));
+
+        return ResponseEntity.ok(ApiResponse.ok(body));
     }
 }

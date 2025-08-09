@@ -1,5 +1,6 @@
 package com.example.ei_backend.controller;
 
+import com.example.ei_backend.config.ApiResponse;
 import com.example.ei_backend.domain.dto.CourseDto;
 import com.example.ei_backend.service.CourseService;
 import lombok.RequiredArgsConstructor;
@@ -21,11 +22,12 @@ public class CourseController {
     private final CourseService courseService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CourseDto.Response> createProduct(
+    @PreAuthorize("hasRole('ADMIN')") // hasRole은 내부에서 ROLE_ 접두사 붙음
+    public ResponseEntity<ApiResponse<CourseDto.Response>> createProduct(
             @ModelAttribute CourseDto.Request request
     ) throws IOException {
         CourseDto.Response response = courseService.createProduct(request);
-        return ResponseEntity.ok(response);
+        // 생성이므로 201로 응답
+        return ResponseEntity.status(201).body(ApiResponse.ok(response));
     }
 }
