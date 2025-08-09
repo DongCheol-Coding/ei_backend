@@ -1,6 +1,8 @@
 package com.example.ei_backend.domain.entity;
 
 import com.example.ei_backend.domain.UserRole;
+import com.example.ei_backend.exception.CustomException;
+import com.example.ei_backend.exception.ErrorCode;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import lombok.*;
@@ -97,6 +99,27 @@ public class User {
         }
         this.password = passwordEncoder.encode(newPassword);
     }
+
+    private void validatePasswordLength(String password) {
+        if (password == null || password.isBlank() || password.length() < 8) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "비밀번호는 8자 이상이어야 합니다.");
+        }
+    }
+
+    public void validatePassword(String newPassword, PasswordEncoder encoder) {
+        // 1) 길이 검증
+        validatePasswordLength(newPassword);
+
+        // 2) 동일 여부 검증
+        if (encoder.matches(newPassword, this.password)) {
+            throw new CustomException(ErrorCode.CONFLICT, "동일한 비밀번호로 변경은 불가능합니다.");
+        }
+
+        // 3) 변경
+        this.password = encoder.encode(newPassword);
+    }
+
+
     /**
      * 비즈니스 로직 - 회원 탈퇴
      */
@@ -104,7 +127,6 @@ public class User {
         this.email = "deleted_" + this.id + "@deleted.local";
         this.password = "deleted";
         this.phone = "deleted";
-        this.birthDate = null;
         this.name = "탈퇴 회원";
         this.isDeleted = true;
         this.roles.clear();

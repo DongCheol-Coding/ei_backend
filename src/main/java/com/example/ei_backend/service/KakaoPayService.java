@@ -43,17 +43,17 @@ public class KakaoPayService {
 
     public KakaoPayReadyResponseDto ready(Course course, String userEmail) {
         try {
-            log.info("🔥 [KakaoPay] Admin Key: {}", kakaoPaySecretKey);
-            log.info("🔥 [KakaoPay] CID: {}", cid);
+            log.info(" [KakaoPay] Admin Key: {}", kakaoPaySecretKey);
+            log.info(" [KakaoPay] CID: {}", cid);
 
-            log.info("🔥 course title = {}", course.getTitle());
-            log.info("🔥 course price = {}", course.getPrice());
-            log.info("🔥 userEmail = {}", userEmail);
+            log.info(" course title = {}", course.getTitle());
+            log.info(" course price = {}", course.getPrice());
+            log.info(" userEmail = {}", userEmail);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", "SECRET_KEY " + kakaoPaySecretKey);
-            log.info("🔥 Authorization 헤더: {}", headers.getFirst("Authorization"));
+            log.info(" Authorization 헤더: {}", headers.getFirst("Authorization"));
 
             String orderId = UUID.randomUUID().toString();
 
@@ -80,7 +80,7 @@ public class KakaoPayService {
                     String.class
             );
 
-            log.info("📦 [카카오 응답 원문] {}", rawResponse.getBody());
+            log.info(" [카카오 응답 원문] {}", rawResponse.getBody());
 
             // ✅ 응답을 DTO로 변환
             ObjectMapper objectMapper = new ObjectMapper();
@@ -95,11 +95,11 @@ public class KakaoPayService {
             return responseDto;
 
         } catch (HttpClientErrorException | HttpServerErrorException e) {
-            log.error("❌ [카카오 오류 응답] 상태코드: {}", e.getStatusCode());
-            log.error("❌ [카카오 오류 응답 본문] {}", e.getResponseBodyAsString());
+            log.error(" [카카오 오류 응답] 상태코드: {}", e.getStatusCode());
+            log.error(" [카카오 오류 응답 본문] {}", e.getResponseBodyAsString());
             throw new RuntimeException("카카오 API 오류: " + e.getMessage());
         } catch (Exception e) {
-            log.error("❌ [예상치 못한 에러]", e);
+            log.error(" [예상치 못한 에러]", e);
             throw new RuntimeException("카카오페이 ready 요청 중 오류 발생", e);
         }
     }

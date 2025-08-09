@@ -31,8 +31,6 @@ public class UserDto {
 
         private String name;
 
-        private LocalDate birthDate;
-
         @Pattern(regexp = "^\\d{10,15}$")
         private String phone;
 
@@ -63,8 +61,10 @@ public class UserDto {
                     .id(user.getId())
                     .email(user.getEmail())
                     .name(user.getName())
-                    .token(token)
+                    .phone(user.getPhone())
+                    .imageUrl(user.getProfileImage() != null ? user.getProfileImage().getImageUrl() : null)
                     .roles(user.getRoles())
+                    .token(token)
                     .build();
         }
 

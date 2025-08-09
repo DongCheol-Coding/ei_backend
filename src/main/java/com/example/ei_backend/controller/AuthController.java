@@ -7,13 +7,15 @@ import com.example.ei_backend.domain.dto.TokenResponseDto;
 import com.example.ei_backend.domain.dto.UserDto;
 import com.example.ei_backend.domain.entity.RefreshToken;
 import com.example.ei_backend.domain.entity.User;
+import com.example.ei_backend.exception.CustomException;
+import com.example.ei_backend.exception.ErrorCode;
 import com.example.ei_backend.repository.RefreshTokenRepository;
 import com.example.ei_backend.repository.UserRepository;
 import com.example.ei_backend.security.JwtTokenProvider;
 import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.AuthService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,7 +25,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-
 
 @RestController
 @RequestMapping("/api/auth")
@@ -35,99 +36,96 @@ public class AuthController {
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
 
-
-
+    /** 회원가입 요청 (인증 메일 발송) */
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody UserDto.Request dto) {
-        authService.requestSignup(dto); // 인증 메일 발송
-        return ResponseEntity.ok(ApiResponse.success("인증 메일이 전송되었습니다.")); // ✅
-
+    public ResponseEntity<ApiResponse<String>> signup(@Valid @RequestBody UserDto.Request dto) {
+        authService.requestSignup(dto);
+        return ResponseEntity.ok(ApiResponse.ok("인증 메일이 전송되었습니다."));
     }
 
+    /** 이메일 링크로 최종 가입 */
     @GetMapping("/verify")
-    public ResponseEntity<?> verifyByEmailLink(
+    public ResponseEntity<ApiResponse<UserDto.Response>> verifyByEmailLink(
             @RequestParam String email,
             @RequestParam String code
     ) {
         UserDto.Response response = authService.verifyAndSignup(email, code);
-        return ResponseEntity.ok(response); // 바로 가입 완료 및 로그인 토큰 반환
+        return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
+    /** 로그인 */
     @PostMapping("/login")
-    public ResponseEntity<TokenResponseDto> login(@RequestBody UserDto.LoginRequest request) {
-        UserDto.Response response = authService.login(request.getEmail(), request.getPassword());
+    public ResponseEntity<ApiResponse<TokenResponseDto>> login(@RequestBody UserDto.LoginRequest request) {
+        // 서비스에서 사용자 검증 및 토큰 저장(리프레시)까지 수행
+        UserDto.Response user = authService.login(request.getEmail(), request.getPassword());
 
-        // Set<UserRole> → List<String> 으로 변환
-        List<String> roles = response.getRoles()
-                .stream()
-                .map(Enum::name)
-                .toList();
-
+        // access/refresh 발급 (access는 서비스에서 이미 만들었어도 여기서 일관되게 재발급 가능)
+        List<String> roles = user.getRoles().stream().map(Enum::name).toList();
         String accessToken = jwtTokenProvider.generateAccessToken(request.getEmail(), roles);
         String refreshToken = jwtTokenProvider.generateRefreshToken(request.getEmail());
 
-        return ResponseEntity.ok(new TokenResponseDto(accessToken, refreshToken));
+        return ResponseEntity.ok(ApiResponse.ok(new TokenResponseDto(accessToken, refreshToken)));
     }
 
+    /** 비밀번호 변경 */
     @PatchMapping("/password")
-    public ResponseEntity<Void> changePassword(@RequestBody ChangePasswordRequestDto request) {
+    public ResponseEntity<ApiResponse<Void>> changePassword(@RequestBody ChangePasswordRequestDto request) {
         authService.changePassword(request.getUserId(), request.getNewPassword());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
+    /** 회원 탈퇴 */
     @DeleteMapping("/account")
-    public ResponseEntity<Void> deleteAccount(@RequestBody DeleteAccountRequestDto request) {
+    public ResponseEntity<ApiResponse<String>> deleteAccount(@RequestBody DeleteAccountRequestDto request) {
         authService.deleteAccount(request.getUserId());
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.ok("계정이 삭제(탈퇴) 처리되었습니다."));
     }
 
+    /** 액세스 토큰 재발급 */
     @PostMapping("/reissue")
-    public ResponseEntity<?> reissue(@RequestHeader("Authorization") String refreshTokenHeader) {
+    public ResponseEntity<ApiResponse<Map<String, String>>> reissue(
+            @RequestHeader("Authorization") String refreshTokenHeader
+    ) {
         String refreshToken = refreshTokenHeader.replace("Bearer ", "");
 
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("유효하지 않은 리프레시 토큰입니다.");
+            throw new CustomException(ErrorCode.UNAUTHORIZED); // 전역 예외 처리
         }
 
         String email = jwtTokenProvider.getEmail(refreshToken);
 
         RefreshToken savedToken = refreshTokenRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("저장된 리프레시 토큰이 없습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.VERIFICATION_NOT_FOUND)); // 저장된 토큰 없음 → 적절한 코드로 매핑
 
         if (!savedToken.getToken().equals(refreshToken)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("토큰이 일치하지 않습니다.");
+            throw new CustomException(ErrorCode.UNAUTHORIZED); // 토큰 불일치
         }
 
-        //  여기서 roles 조회
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        List<String> roles = user.getRoles().stream()
-                .map(Enum::name)
-                .toList();
-
+        List<String> roles = user.getRoles().stream().map(Enum::name).toList();
         String newAccessToken = jwtTokenProvider.generateAccessToken(email, roles);
 
-        return ResponseEntity.ok(Map.of("accessToken", newAccessToken));
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("accessToken", newAccessToken)));
     }
 
+    /** 프로필 이미지 업로드/교체 */
     @PatchMapping(value = "/profile/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse> uploadProfileImage(
+    public ResponseEntity<ApiResponse<String>> uploadProfileImage(
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestPart("image") MultipartFile image
     ) throws IOException {
         String imageUrl = authService.updateProfileImage(principal.getUserId(), image);
-
-        // 직접 문자열로 확인
-        return ResponseEntity.ok(ApiResponse.success(imageUrl));
+        return ResponseEntity.ok(ApiResponse.ok(imageUrl));
     }
 
+    /** 프로필 이미지 삭제 */
     @DeleteMapping("/profile/image")
-    public ResponseEntity<ApiResponse<?>> deleteProfileImage(@AuthenticationPrincipal UserPrincipal userPrincipal) {
-        authService.deleteProfileImage(userPrincipal.getUserId());
-        return ResponseEntity.ok(ApiResponse.success("프로필 이미지가 삭제되었습니다."));
+    public ResponseEntity<ApiResponse<String>> deleteProfileImage(
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+        authService.deleteProfileImage(principal.getUserId());
+        return ResponseEntity.ok(ApiResponse.ok("프로필 이미지가 삭제되었습니다."));
     }
-
-
-
 }

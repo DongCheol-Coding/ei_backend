@@ -52,7 +52,7 @@ public class S3Uploader {
                 .key(key)
                 .build());
 
-        log.info("✅ S3에서 파일 삭제 완료: {}", key);
+        log.info(" S3에서 파일 삭제 완료: {}", key);
     }
 
     private String extractKeyFromUrl(String fileUrl) {

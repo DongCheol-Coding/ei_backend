@@ -1,7 +1,6 @@
 package com.example.ei_backend.service;
 
 import com.example.ei_backend.aws.S3Uploader;
-import com.example.ei_backend.domain.ErrorCode;
 import com.example.ei_backend.domain.UserRole;
 import com.example.ei_backend.domain.dto.CourseProgressDto;
 import com.example.ei_backend.domain.dto.MyPageResponseDto;
@@ -13,6 +12,7 @@ import com.example.ei_backend.domain.entity.ProfileImage;
 import com.example.ei_backend.domain.entity.RefreshToken;
 import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.exception.CustomException;
+import com.example.ei_backend.exception.ErrorCode;
 import com.example.ei_backend.mapper.UserMapper;
 import com.example.ei_backend.repository.EmailVerificationRepository;
 import com.example.ei_backend.repository.RefreshTokenRepository;
@@ -49,37 +49,30 @@ public class AuthService {
     private final EmailVerificationRepository emailVerificationRepository;
     private final EmailSender emailSender;
     private final RefreshTokenRepository refreshTokenRepository;
-
-
-    private final ObjectMapper objectMapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule()) // LocalDate, LocalDateTime 직렬화 지원
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS); // 날짜를 ISO 8601 형식으로 출력
     private final S3Uploader s3Uploader;
+    private final ObjectMapper objectMapper;
 
     @Value("${app.client.host}")
     private String clientHost;
 
-    /**
-     * 회원가입
-     */
+    /** 회원가입 요청 */
     @Transactional
     public void requestSignup(UserDto.Request dto) {
         if (userRepository.existsByEmailAndIsDeletedFalse(dto.getEmail())) {
-            throw new IllegalStateException("이미 가입된 이메일입니다.");
+            throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
         String code = createRandomCode();
 
-        // ✅ password 암호화
-        String rawPassword = dto.getPassword();
-        dto.setPassword(passwordEncoder.encode(rawPassword));
+        // 비밀번호 암호화
+        dto.setPassword(passwordEncoder.encode(dto.getPassword()));
 
-        // ✅ 안전하게 직렬화
-        String requestJson;
+        // 요청 JSON 저장
+        final String requestJson;
         try {
             requestJson = objectMapper.writeValueAsString(dto);
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("회원가입 정보를 JSON으로 변환하는 데 실패했습니다.", e);
+            throw new CustomException(ErrorCode.VERIFICATION_JSON_ERROR);
         }
 
         emailVerificationRepository.save(
@@ -97,43 +90,63 @@ public class AuthService {
         emailSender.send(dto.getEmail(), "DongCheol-Coding 회원가입 인증", content);
     }
 
-        @Transactional
-         public UserDto.Response verifyAndSignup(String email, String code) {
+    /** 이메일 + 코드로 최종 가입 */
+    @Transactional
+    public UserDto.Response verifyAndSignup(String email, String code) {
         EmailVerification verification = emailVerificationRepository
                 .findTopByEmailOrderByExpirationTimeDesc(email)
-                .orElseThrow(() -> new IllegalStateException("인증 요청 없음"));
+                .orElseThrow(() -> new CustomException(
+                        ErrorCode.VERIFICATION_NOT_FOUND,
+                        "존재하지 않은 코드입니다."
+                ));
 
-        verification.verify(code); // 검증
+        // 이미 인증된 경우
+        if (verification.isVerified()) {
+            throw new CustomException(ErrorCode.CONFLICT, "이미 인증되었습니다.");
+        }
 
-        UserDto.Request dto = extractRequestDto(verification); // 직렬화 해제
-        User user = userMapper.toEntity(dto); // password는 이미 암호화된 상태
+        // 코드 불일치
+        if (!verification.getCode().equals(code)) {
+            throw new CustomException(ErrorCode.INVALID_VERIFY_CODE, "존재하지 않은 코드입니다.");
+        }
+
+        // verify() 내부에서 상태 변경 + 예외 처리
+        verification.verify(code);
+
+        UserDto.Request dto = extractRequestDto(verification);
+        User user = userMapper.toEntity(dto); // password는 이미 암호화 상태
         user.addRole(UserRole.ROLE_MEMBER);
         userRepository.save(user);
 
-            String token = jwtTokenProvider.generateAccessToken(
-                    user.getEmail(),
-                    user.getRoles().stream().map(Enum::name).toList()
-            );
+        String token = jwtTokenProvider.generateAccessToken(
+                user.getEmail(),
+                user.getRoles().stream().map(Enum::name).toList()
+        );
         return UserDto.Response.fromEntity(user, token);
     }
 
-
-    private UserDto.Request extractRequestDto(EmailVerification verification) {
-        try {
-            return objectMapper.readValue(verification.getRequestData(), UserDto.Request.class);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("회원가입 요청 데이터를 복원할 수 없습니다.", e);
-        }
-    }
+    /** 코드만으로 최종 가입 (링크 클릭 방식) */
     @Transactional
     public UserDto.Response verifyAndSignup(String code) {
         EmailVerification verification = emailVerificationRepository.findByCode(code)
-                .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 코드입니다."));
+                .orElseThrow(() -> new CustomException(
+                        ErrorCode.INVALID_VERIFY_CODE,
+                        "존재하지 않은 코드입니다."
+                ));
+
+        // 이미 인증된 경우
+        if (verification.isVerified()) {
+            throw new CustomException(ErrorCode.CONFLICT, "이미 인증되었습니다.");
+        }
+
+        // 코드 불일치 (혹시라도)
+        if (!verification.getCode().equals(code)) {
+            throw new CustomException(ErrorCode.INVALID_VERIFY_CODE, "존재하지 않은 코드입니다.");
+        }
 
         verification.verify(code);
 
         UserDto.Request dto = extractRequestDto(verification);
-
         User user = userMapper.toEntity(dto);
         user.encodePassword(passwordEncoder.encode(user.getPassword()));
         user.addRole(UserRole.ROLE_MEMBER);
@@ -145,38 +158,44 @@ public class AuthService {
         );
         return UserDto.Response.fromEntity(user, token);
     }
-    /**
-     * 비밀번호 변경
-     */
+
+    /** EmailVerification -> UserDto.Request 변환 */
+    private UserDto.Request extractRequestDto(EmailVerification verification) {
+        try {
+            return objectMapper.readValue(verification.getRequestData(), UserDto.Request.class);
+        } catch (JsonProcessingException e) {
+            throw new CustomException(ErrorCode.VERIFICATION_JSON_ERROR, "요청 직렬화에 실패했습니다.");
+        }
+    }
+
+    /** 비밀번호 변경 */
     @Transactional
     public void changePassword(Long userId, String newPassword) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalStateException("존재하지 않는 사용자"));
-        user.changePassword(newPassword, passwordEncoder);
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        user.validatePassword(newPassword, passwordEncoder);
     }
 
-    /**
-     * 회원 탈퇴
-     */
+
+    /** 회원 탈퇴 */
     @Transactional
     public void deleteAccount(Long userId) {
         User user = userRepository.findByIdAndIsDeletedFalse(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자"));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         user.deleteAccount();
     }
 
-    /**
-     * 로그인
-     */
+    /** 로그인 */
     @Transactional(readOnly = true)
     public UserDto.Response login(String email, String password) {
         User user = userRepository.findByEmailAndIsDeletedFalse(email)
-                .orElseThrow(() -> new IllegalArgumentException("이메일 또는 비밀번호가 잘못되었습니다."));
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_CREDENTIALS));
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new IllegalStateException("이메일 또는 비밀번호가 잘못되었습니다.");
+            throw new CustomException(ErrorCode.INVALID_CREDENTIALS);
         }
-        String token = jwtTokenProvider.generateAccessToken(
+
+        String accessToken = jwtTokenProvider.generateAccessToken(
                 user.getEmail(),
                 user.getRoles().stream().map(Enum::name).toList()
         );
@@ -189,78 +208,64 @@ public class AuthService {
                         .build()
         );
 
-        return UserDto.Response.fromEntity(user, token);
+        return UserDto.Response.fromEntity(user, accessToken);
     }
 
-    /**
-     * 검색 로직 구현
-     */
+    /** 관리자 검색 */
     @Transactional(readOnly = true)
     public List<User> searchUser(String name, String phoneSuffix, String role) {
         List<User> allUsers = userRepository.findAll();
-
         Stream<User> stream = allUsers.stream();
 
-        // 이름 or 핸드폰 번호 조건
         if (name != null || phoneSuffix != null) {
             stream = stream.filter(user -> user.matchesAny(name, phoneSuffix));
         }
-        // 역할 필터
         if (role != null) {
             UserRole targetRole = parseRole(role);
             stream = stream.filter(user -> user.hasRole(targetRole));
         }
-
         return stream.toList();
-
     }
 
+    /** 프로필 이미지 업로드/교체 */
     @Transactional
     public String updateProfileImage(Long userId, MultipartFile file) throws IOException {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자 없음"));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         String imageUrl = s3Uploader.upload(file, "profile-images");
         ProfileImage profileImage = user.getProfileImage();
 
         if (profileImage != null) {
-            //  update 쿼리만 발생
             profileImage.updateImageUrl(imageUrl);
         } else {
-            // 처음 등록인 경우 새로 생성
             ProfileImage newImage = ProfileImage.builder()
                     .imageUrl(imageUrl)
                     .build();
-
-            user.setProfileImage(newImage); // 연관관계 설정
+            user.setProfileImage(newImage);
         }
-
         return imageUrl;
     }
 
+    /** 프로필 이미지 삭제 */
     @Transactional
     public void deleteProfileImage(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException(("사용자 없음")));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         ProfileImage profileImage = user.getProfileImage();
         if (profileImage == null) {
-            throw new IllegalStateException("프로필 이미지 없음");
+            throw new CustomException(ErrorCode.PROFILE_IMAGE_NOT_FOUND);
         }
 
         s3Uploader.delete(profileImage.getImageUrl());
-
         user.setProfileImage(null);
     }
 
+    /** 마이페이지 묶음 조회 */
     public MyPageResponseDto getMyPageInfo(User user) {
-        // UserDto 생성
         UserDto.Response userDto = userMapper.toResponse(user);
-
-        // 결제 내역은 아직 없으므로 빈 리스트로 초기화
         List<PaymentDto> paymentDtos = new ArrayList<>();
-
-        // 강의 진행률도 마찬가지
         List<CourseProgressDto> courseProgressDtos = new ArrayList<>();
 
         return MyPageResponseDto.builder()
@@ -270,9 +275,7 @@ public class AuthService {
                 .build();
     }
 
-
-
-
+    /** 문자열 역할 파싱 */
     private UserRole parseRole(String role) {
         try {
             return UserRole.valueOf(role.toUpperCase());
@@ -281,6 +284,7 @@ public class AuthService {
         }
     }
 
+    /** 회원가입 코드 생성 */
     private String createRandomCode() {
         int length = 6;
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -292,5 +296,4 @@ public class AuthService {
         }
         return code.toString();
     }
-
 }
