@@ -3,9 +3,11 @@ package com.example.ei_backend.security;
 import com.example.ei_backend.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -13,25 +15,28 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 @Slf4j
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-        private final JwtTokenProvider jwtTokenProvider;
-        private final UserRepository userRepository;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
 
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, UserRepository userRepository) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userRepository = userRepository;
-        log.info(" JwtAuthenticationFilter 생성됨");
+        log.info("JwtAuthenticationFilter 생성됨");
     }
-
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        log.info("[JwtFilter] 요청 경로: " + path);
+        log.info("[JwtFilter] 요청 경로: {}", path);
+
+        // ✅ SockJS/WS 경로는 핸드셰이크 인터셉터에서 검증하므로 필터 우회
+        if (path.startsWith("/ws-chat")) return true;
 
         return path.startsWith("/swagger-ui")
                 || path.equals("/swagger-ui.html")
@@ -54,55 +59,73 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        log.info(" JwtAuthenticationFilter 실행됨: {}", request.getRequestURI());
-        log.info(" doFilterInternal 호출됨");
-
-        //  OncePerRequestFilter는 shouldNotFilter를 자동으로 호출합니다.
-        // 아래 수동 호출은 없어도 됩니다. (남겨도 동작엔 문제 없음)
-        // if (shouldNotFilter(request)) { filterChain.doFilter(request, response); return; }
+        log.info("JwtAuthenticationFilter 실행: {}", request.getRequestURI());
 
         try {
-            String header = request.getHeader("Authorization");
-            if (header != null && header.startsWith("Bearer ")) {
-                String token = header.substring(7);
+            // 이미 인증된 경우 스킵 (체인만 진행)
+            if (SecurityContextHolder.getContext().getAuthentication() != null) {
+                filterChain.doFilter(request, response);
+                return;
+            }
 
-                if (jwtTokenProvider.validateToken(token)) {
-                    String email = jwtTokenProvider.getEmail(token);
-                    // List<String> roles = jwtTokenProvider.getRoles(token); // 토큰에서 꺼내도 OK
+            String token = resolveToken(request);
 
-                    // ✅ 유저 조회 (예외 던지지 말기!)
-                    userRepository.findByEmail(email).ifPresentOrElse(user -> {
-                        UserPrincipal principal = new UserPrincipal(user);
+            if (token != null && jwtTokenProvider.validateToken(token)) {
+                String email = jwtTokenProvider.getEmail(token);
 
-                        UsernamePasswordAuthenticationToken auth =
-                                new UsernamePasswordAuthenticationToken(
-                                        principal,
-                                        null,
-                                        principal.getAuthorities() // 토큰 roles 대신 실제 권한 사용 권장
-                                );
-                        auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(auth);
-                        log.info(" 인증 완료: {}", email);
-                    }, () -> {
-                        log.info("유저를 찾을 수 없습니다: {}", email);
-                        SecurityContextHolder.clearContext();
-                    });
+                userRepository.findByEmail(email).ifPresentOrElse(user -> {
+                    UserPrincipal principal = new UserPrincipal(user);
+                    var auth = new UsernamePasswordAuthenticationToken(
+                            principal, null, principal.getAuthorities()
+                    );
+                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                    log.info("인증 완료: {}", email);
+                }, () -> {
+                    log.info("유저를 찾을 수 없습니다: {}", email);
+                    SecurityContextHolder.clearContext();
+                });
 
+            } else {
+                // 토큰이 없거나 유효하지 않으면 인증 없이 통과 (permitAll 경로 등 고려)
+                if (token == null) {
+                    log.info("토큰 미제공 (Authorization 헤더/AT 쿠키 없음)");
                 } else {
                     log.info("토큰 유효하지 않음");
                     SecurityContextHolder.clearContext();
                 }
-            } else {
-                log.info("Authorization 헤더 없음 또는 형식 불일치");
-                SecurityContextHolder.clearContext();
             }
+
         } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
-            //  JWT 파싱/검증 예외는 500로 올리면 안 됨 → 컨텍스트만 비우고 통과
-            log.warn("JWT 처리 중 예외: {}", e.getMessage());
+            log.warn("JWT 처리 중 예외: {}", e.getMessage(), e);
             SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
     }
 
+    /**
+     * 토큰 우선순위:
+     * 1) Authorization: Bearer xxx
+     * 2) Cookie: AT
+     */
+    private String resolveToken(HttpServletRequest request) {
+        // 1) Authorization 헤더
+        String authz = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (authz != null && authz.startsWith("Bearer ")) {
+            return authz.substring(7);
+        }
+
+        // 2) 쿠키 AT
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            return Arrays.stream(cookies)
+                    .filter(c -> "AT".equals(c.getName()))
+                    .map(Cookie::getValue)
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        return null;
+    }
 }

@@ -1,6 +1,5 @@
 package com.example.ei_backend.security;
 
-import com.example.ei_backend.domain.UserRole;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -105,6 +104,14 @@ public class JwtTokenProvider {
         return expiration.getTime() - System.currentTimeMillis();
     }
 
+    public String getUsername(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getSubject();
+    }
 
 }
 

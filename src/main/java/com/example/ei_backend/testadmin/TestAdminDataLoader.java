@@ -23,6 +23,8 @@ public class TestAdminDataLoader implements CommandLineRunner {
         createAdmin("admin2@test.com", "관리자2");
         createMember("member1@test.com", "회원1");
         createMember("member2@test.com", "회원2");
+        createSupport("support1@test.com", "회원1");
+        createSupport("support2@test.com", "회원2");
     }
 
     private void createAdmin(String email, String name) {
@@ -49,6 +51,20 @@ public class TestAdminDataLoader implements CommandLineRunner {
                 .isSocial(false)
                 .isDeleted(false)
                 .roles(Set.of(UserRole.ROLE_MEMBER))
+                .build();
+        userRepository.save(user);
+    }
+
+    private void createSupport(String email, String name) {
+        if (userRepository.existsByEmail(email)) return;
+
+        User user = User.builder()
+                .email(email)
+                .password(passwordEncoder.encode("support123!"))
+                .name(name)
+                .isSocial(false)
+                .isDeleted(false)
+                .roles(Set.of(UserRole.ROLE_SUPPORT))
                 .build();
         userRepository.save(user);
     }
