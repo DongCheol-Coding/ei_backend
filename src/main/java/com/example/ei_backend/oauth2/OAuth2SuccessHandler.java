@@ -41,11 +41,13 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException {
 
+
         if (!(authentication.getPrincipal() instanceof CustomOAuth2User customUser)) {
             log.error("CustomOAuth2User 캐스팅 실패");
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "OAuth principal error");
             return;
         }
+        log.info(">>> OAuth2SuccessHandler 실행됨: user={}", customUser.getUser().getEmail());
 
         User user = customUser.getUser();
 
@@ -79,6 +81,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         ResponseCookie rtCookie = CookieUtils.makeRefreshCookie(
                 "RT", refreshToken, cookieDomain, "/", cookieMaxDays, https
         );
+        log.info("RT Set-Cookie => {}", rtCookie);
         response.addHeader(HttpHeaders.SET_COOKIE, rtCookie.toString());
 
         // 5) JSON 바디 1회 반환
