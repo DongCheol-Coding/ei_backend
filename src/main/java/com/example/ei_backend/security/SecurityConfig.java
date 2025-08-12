@@ -140,21 +140,33 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(java.util.List.of(
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+        // ✅ WebSocket/SockJS 전용: 어떤 Origin이 와도 허용 (테스트용)
+        CorsConfiguration ws = new CorsConfiguration();
+        ws.setAllowedOriginPatterns(java.util.List.of("*")); // allowCredentials=true면 patterns 사용
+        ws.setAllowedMethods(java.util.List.of("GET","POST","OPTIONS"));
+        ws.setAllowedHeaders(java.util.List.of("*"));
+        ws.setAllowCredentials(true);
+        ws.setMaxAge(3600L);
+        source.registerCorsConfiguration("/ws-chat", ws);
+        source.registerCorsConfiguration("/ws-chat/**", ws);
+
+        // ✅ 나머지 API: 기존처럼 제한된 Origin만 허용
+        CorsConfiguration api = new CorsConfiguration();
+        api.setAllowedOrigins(java.util.List.of(
                 "http://localhost:5173",
                 "https://www.dongcheolcoding.life",
                 "https://dongcheolcoding.life",
                 "http://api.dongcheolcoding.life"
         ));
-        config.setAllowedMethods(java.util.List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-        config.setAllowedHeaders(java.util.List.of("*"));
-        config.setExposedHeaders(java.util.List.of("Authorization","Location"));
-        config.setAllowCredentials(true);
-        config.setMaxAge(3600L);
+        api.setAllowedMethods(java.util.List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
+        api.setAllowedHeaders(java.util.List.of("*"));
+        api.setExposedHeaders(java.util.List.of("Authorization","Location"));
+        api.setAllowCredentials(true);
+        api.setMaxAge(3600L);
+        source.registerCorsConfiguration("/**", api);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
         return source;
     }
 }
