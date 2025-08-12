@@ -43,13 +43,6 @@ public class AuthController {
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
 
-    @Value("${app.cookie.domain: localhost}")
-    private String cookieDomain;
-
-    private static final String RT_COOKIE = "RT";
-    private static final String RT_PATH   = "/"; // 재발급 전용이면 "/api/auth/reissue" 로 좁혀도 됨
-    private static final long   RT_DAYS   = 14L;
-
     /** 회원가입 요청 (인증 메일 발송) */
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<String>> signup(@Valid @RequestBody UserDto.Request dto) {
@@ -90,38 +83,40 @@ public class AuthController {
         boolean isProdDomain = host.equalsIgnoreCase(root) || host.endsWith("." + root);
         String cookieDomain  = isProdDomain ? root : null; // 운영만 Domain 지정, 그 외 host-only
 
-        // RT 쿠키 추가
-        ResponseCookie rtCookie = CookieUtils.makeRefreshCookie(
-                "RT", refreshToken, cookieDomain, "/", 14, https
-        );
+        ResponseCookie rtCookie = CookieUtils.makeRefreshCookie("RT", refreshToken, cookieDomain, "/", 14, https);
         httpRes.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, rtCookie.toString());
 
-        // 응답 바디(AT만 보내도 되고, 현재처럼 AT/RT 둘 다 보내도 됨)
-        return ResponseEntity.ok(
-                ApiResponse.ok(new TokenResponseDto(accessToken, refreshToken))
-        );
+// AT 쿠키 추가
+        ResponseCookie atCookie = ResponseCookie.from("AT", accessToken)
+                .httpOnly(true).secure(https).sameSite("Lax").path("/").domain(cookieDomain)
+                .maxAge(30 * 60)
+                .build();
+        httpRes.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, atCookie.toString());
+
+// 바디로 AT/RT를 굳이 보낼 필요 없지만, 유지해도 됨.
+        return ResponseEntity.ok(ApiResponse.ok(new TokenResponseDto(accessToken, refreshToken)));
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest req, HttpServletResponse res,
-                                       @AuthenticationPrincipal UserDetailsImpl principal) {
+                                       @AuthenticationPrincipal UserPrincipal principal) {
         String email = principal.getUsername();
-        authService.logout(email); // RT 레코드 삭제 (deleteByEmail 등)
+        authService.logout(email); // RT 레코드 삭제
 
-        String scheme = java.util.Optional.ofNullable(req.getHeader("X-Forwarded-Proto"))
-                .orElse(req.getScheme());
-        String host   = java.util.Optional.ofNullable(req.getHeader("X-Forwarded-Host"))
-                .orElse(req.getServerName());
+        String scheme = java.util.Optional.ofNullable(req.getHeader("X-Forwarded-Proto")).orElse(req.getScheme());
+        String host   = java.util.Optional.ofNullable(req.getHeader("X-Forwarded-Host")).orElse(req.getServerName());
         boolean https = "https".equalsIgnoreCase(scheme);
         String root   = "dongcheolcoding.life";
-        boolean isProdDomain = host.equalsIgnoreCase(root) || host.endsWith("." + root);
-        String cookieDomain  = isProdDomain ? root : null;
+        boolean isProd = host.equalsIgnoreCase(root) || host.endsWith("." + root);
+        String domain = isProd ? root : null;
 
-        ResponseCookie del = CookieUtils.deleteCookie("RT", cookieDomain, "/", https);
-        res.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, del.toString());
+        res.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE,
+                CookieUtils.deleteCookie("RT", domain, "/", https).toString());
+        res.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE,
+                CookieUtils.deleteCookie("AT", domain, "/", https).toString());
+
         return ResponseEntity.noContent().build();
     }
-
     /** 비밀번호 변경 */
     @PatchMapping("/password")
     public ResponseEntity<ApiResponse<Void>> changePassword(
@@ -143,30 +138,48 @@ public class AuthController {
     /** 액세스 토큰 재발급 */
     @PostMapping("/reissue")
     public ResponseEntity<ApiResponse<Map<String, String>>> reissue(
-            @RequestHeader("Authorization") String refreshTokenHeader
+            @CookieValue(value = "RT", required = false) String refreshToken,
+            HttpServletRequest req,
+            HttpServletResponse res
     ) {
-        String refreshToken = refreshTokenHeader.replace("Bearer ", "");
-
+        if (refreshToken == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED); // 전역 예외 처리
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
         String email = jwtTokenProvider.getEmail(refreshToken);
 
-        RefreshToken savedToken = refreshTokenRepository.findByEmail(email)
-                .orElseThrow(() -> new CustomException(ErrorCode.VERIFICATION_NOT_FOUND)); // 저장된 토큰 없음 → 적절한 코드로 매핑
-
-        if (!savedToken.getToken().equals(refreshToken)) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED); // 토큰 불일치
+        RefreshToken saved = refreshTokenRepository.findByEmail(email)
+                .orElseThrow(() -> new CustomException(ErrorCode.VERIFICATION_NOT_FOUND));
+        if (!saved.getToken().equals(refreshToken)) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        var roles = user.getRoles().stream().map(Enum::name).toList();
+        String newAT = jwtTokenProvider.generateAccessToken(email, roles);
 
-        List<String> roles = user.getRoles().stream().map(Enum::name).toList();
-        String newAccessToken = jwtTokenProvider.generateAccessToken(email, roles);
+        // 프록시 고려한 쿠키 속성 계산
+        String scheme = java.util.Optional.ofNullable(req.getHeader("X-Forwarded-Proto")).orElse(req.getScheme());
+        String host   = java.util.Optional.ofNullable(req.getHeader("X-Forwarded-Host")).orElse(req.getServerName());
+        boolean https = "https".equalsIgnoreCase(scheme);
+        String root   = "dongcheolcoding.life";
+        boolean isProd = host.equalsIgnoreCase(root) || host.endsWith("." + root);
+        String domain = isProd ? root : null;
 
-        return ResponseEntity.ok(ApiResponse.ok(Map.of("accessToken", newAccessToken)));
+        // AT 쿠키 갱신
+        var atCookie = ResponseCookie.from("AT", newAT)
+                .httpOnly(true).secure(https).sameSite("Lax").path("/").domain(domain)
+                .maxAge(30 * 60) // 30분
+                .build();
+        res.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, atCookie.toString());
+
+        // 필요하면 RT도 회전(선택). 회전하려면 새 RT 생성 후 저장 + Set-Cookie 한번 더.
+        // 지금은 AT만 갱신.
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("accessToken", newAT)));
     }
 
     /** 프로필 이미지 업로드/교체 */
