@@ -72,6 +72,8 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET,  "/test/**").permitAll()
+                        .requestMatchers(HttpMethod.HEAD, "/test/**").permitAll()
                         .requestMatchers(
                                 "/", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**",
                                 "/webjars/**", "/swagger-ui.html", "/docs", "/docs/**",
@@ -160,8 +162,11 @@ public class SecurityConfig {
                 "http://localhost:8082",
                 "http://127.0.0.1:8082",
                 "http://localhost:5173",
+                "http://localhost:63342",      // ★ 추가
+                "http://127.0.0.1:63342",      // ★ 추가
                 "https://www.dongcheolcoding.life",
                 "https://dongcheolcoding.life",
+                "http://dongcheolcoding.life",      // ★ 추가
                 "http://api.dongcheolcoding.life"
         ));
         api.setAllowedMethods(java.util.List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
