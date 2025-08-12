@@ -28,6 +28,7 @@ import org.springframework.security.oauth2.client.endpoint.*;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -90,6 +91,11 @@ public class SecurityConfig {
 
                 // ✅ 401/403을 ApiResponse JSON으로 통일
                 .exceptionHandling(ex -> ex
+                        // ✅ /api/**는 반드시 JSON 401 (리다이렉트 금지)
+                        .defaultAuthenticationEntryPointFor(
+                                jsonAuthenticationEntryPoint,
+                                new AntPathRequestMatcher("/api/**")
+                        )
                         .authenticationEntryPoint(jsonAuthenticationEntryPoint)
                         .accessDeniedHandler(jsonAccessDeniedHandler)
                 )
@@ -101,7 +107,7 @@ public class SecurityConfig {
                         .failureHandler(customOAuth2FailureHandler)
                 )
 
-                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
+                .addFilterBefore(jwtAuthenticationFilter(userRepository),
                         UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -164,6 +170,11 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", config);
         return source;
 
+    }
+
+    @Bean
+    org.springframework.web.filter.ForwardedHeaderFilter forwardedHeaderFilter() {
+        return new org.springframework.web.filter.ForwardedHeaderFilter();
     }
 
 }
