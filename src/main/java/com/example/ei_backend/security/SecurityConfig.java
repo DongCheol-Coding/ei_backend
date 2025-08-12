@@ -10,14 +10,11 @@ import com.example.ei_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.RequestEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -27,8 +24,6 @@ import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResp
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequestEntityConverter;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -62,50 +57,6 @@ public class SecurityConfig {
     // public JwtAuthenticationFilter jwtAuthenticationFilter(UserRepository userRepository) {
     //     return new JwtAuthenticationFilter(jwtTokenProvider, userRepository);
     // }
-
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
-                .requestCache(c -> c.disable())
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(HttpMethod.GET,  "/test/**").permitAll()
-                        .requestMatchers(HttpMethod.HEAD, "/test/**").permitAll()
-                        .requestMatchers(
-                                "/", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**",
-                                "/webjars/**", "/swagger-ui.html", "/docs", "/docs/**",
-                                "/api/auth/login", "/api/auth/signup", "/api/auth/reissue",
-                                "/api/auth/verify/**",
-                                "/oauth2/**", "/login/oauth2/**",
-                                "/actuator/health",
-                                "/ws-chat",
-                                "/ws-chat/**",
-                                "/test/**"
-                        ).permitAll()
-                        .requestMatchers(HttpMethod.PATCH, "/api/auth/profile/image").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/auth/profile/image").authenticated()
-                        .requestMatchers("/api/s3/upload").authenticated()
-                        .requestMatchers("/api/chat/**").authenticated()
-                        .anyRequest().authenticated()
-                )
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(jsonAuthenticationEntryPoint)
-                        .accessDeniedHandler(jsonAccessDeniedHandler)
-                )
-                .oauth2Login(oauth2 -> oauth2
-                        .tokenEndpoint(token -> token.accessTokenResponseClient(accessTokenResponseClient()))
-                        .userInfoEndpoint(userInfo -> userInfo.userService(oAuth2UserService))
-                        .successHandler(oAuth2SuccessHandler)
-                        .failureHandler(customOAuth2FailureHandler)
-                )
-                // ✅ 주입받은 필터 빈만 등록
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-
-        return http.build();
-    }
 
     @Bean
     public OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient() {
