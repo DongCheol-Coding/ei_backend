@@ -27,48 +27,56 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException {
         if (!(authentication.getPrincipal() instanceof CustomOAuth2User customUser)) {
-            boolean isProdDomain = isProd(request); // ← 실제 값 계산
+            boolean isProdDomain = isProd(request);
             response.sendRedirect(resolveRedirectBase(request, isProdDomain) + "/login?error=oauth");
             return;
         }
 
         User user = customUser.getUser();
 
+        // 1) RT 발급 + 저장
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
         refreshTokenRepository.save(RefreshToken.builder()
                 .email(user.getEmail())
                 .token(refreshToken)
                 .build());
 
-        // 외부 스킴/호스트 판별
-        String scheme = java.util.Optional.ofNullable(request.getHeader("X-Forwarded-Proto"))
-                .orElse(request.getScheme());
-        String host   = java.util.Optional.ofNullable(request.getHeader("X-Forwarded-Host"))
+        // 2) 도메인/스킴 판별 (프록시 환경 고려)
+        String host = java.util.Optional.ofNullable(request.getHeader("X-Forwarded-Host"))
                 .orElse(request.getServerName());
-
         String root = "dongcheolcoding.life";
         boolean isProdDomain = host.equalsIgnoreCase(root) || host.endsWith("." + root);
 
-        // ✅ 요구사항: 프로덕션은 http로 보내기
-        boolean useHttps = false; // <-- http로 리다이렉트 강제
+        // (지금 운영 실상은 HTTPS로 강제되니, 쿠키는 Secure 권장)
+        boolean useHttps = true;                 // ← 최종 프론트가 https라면 true 권장
+        String sameSite = useHttps ? "None" : "Lax";
         String cookieDomain = isProdDomain ? root : null;
 
-        //  HTTP에서는 SameSite=None(+Secure) 불가 → Lax로 다운그레이드
-        String sameSite = useHttps ? "None" : "Lax";
-
+        // 3) RT HttpOnly 쿠키 심기
         var rtCookie = org.springframework.http.ResponseCookie.from("RT", refreshToken)
                 .httpOnly(true)
-                .secure(useHttps)          // http → false
-                .sameSite(sameSite)        // http → "Lax"
-                .domain(cookieDomain)      // 로컬은 null(Host-Only)
+                .secure(useHttps)
+                .sameSite(sameSite)
+                .domain(cookieDomain)  // 로컬 개발이면 null
                 .path("/")
                 .maxAge(java.time.Duration.ofDays(14))
                 .build();
-
         response.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, rtCookie.toString());
 
-        // ✅ 프로덕션: http로, 로컬: 기존 로컬 주소
-        String redirectUrl = resolveRedirectBase(request, isProdDomain);
+        // 4) 세션/시큐리티 컨텍스트 완전 정리 (OAuth2AuthenticationToken 안 남기기)
+        var session = request.getSession(false);
+        if (session != null) session.invalidate();
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+
+        // 5) JSESSIONID 삭제(있다면)
+        var killJsessionId = org.springframework.http.ResponseCookie.from("JSESSIONID", "")
+                .maxAge(0)
+                .path("/")
+                .build();
+        response.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, killJsessionId.toString());
+
+        // 6) 프론트로 리다이렉트 (지금 쓰는 경로 유지)
+        String redirectUrl = resolveRedirectBase(request, isProdDomain); // 예: http(s)://dongcheolcoding.life/account/kakaoauth
         response.sendRedirect(redirectUrl);
     }
 
