@@ -4,8 +4,8 @@ import com.example.ei_backend.config.ApiResponse;
 import com.example.ei_backend.domain.entity.RefreshToken;
 import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.repository.RefreshTokenRepository;
-import com.example.ei_backend.repository.UserRepository;
 import com.example.ei_backend.security.JwtTokenProvider;
+import com.example.ei_backend.util.CookieUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -19,7 +19,7 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.time.Duration;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -30,7 +30,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final RefreshTokenRepository refreshTokenRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // 운영 루트 도메인만 환경변수/프로퍼티로 주입
     @Value("${app.cookie.root-domain:dongcheolcoding.life}")
     private String prodRootDomain;
 
@@ -50,12 +49,12 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         User user = customUser.getUser();
 
-        // 토큰 발급
+        // 1) 토큰 발급
         var roles = user.getRoles().stream().map(Enum::name).toList();
         String accessToken  = jwtTokenProvider.generateAccessToken(user.getEmail(), roles);
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
 
-        // RT 회전 저장(이메일당 1개 유지)
+        // 2) RT 회전 저장(이메일당 1개 유지)
         refreshTokenRepository.findByEmail(user.getEmail())
                 .ifPresent(refreshTokenRepository::delete);
         refreshTokenRepository.save(RefreshToken.builder()
@@ -65,37 +64,31 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         log.info("[OAuth2SuccessHandler] 카카오 로그인 성공: {}", user.getEmail());
 
-        // ----- 쿠키 세팅 (요청 호스트/프로토콜 기준 자동 분기) -----
-        String scheme = request.getHeader("X-Forwarded-Proto");
-        if (scheme == null) scheme = request.getScheme();
-        String host = request.getHeader("X-Forwarded-Host");
-        if (host == null) host = request.getServerName(); // ex) 3.37.253.185 or api.dongcheolcoding.life
+        // 3) 요청 기반 환경 분기 (HTTPS/도메인)
+        String scheme = Optional.ofNullable(request.getHeader("X-Forwarded-Proto"))
+                .orElse(request.getScheme());
+        String host   = Optional.ofNullable(request.getHeader("X-Forwarded-Host"))
+                .orElse(request.getServerName());
+
         boolean https = "https".equalsIgnoreCase(scheme);
+        boolean isProdDomain = host != null &&
+                (host.equalsIgnoreCase(prodRootDomain) || host.endsWith("." + prodRootDomain));
+        String cookieDomain = isProdDomain ? prodRootDomain : null; // 운영만 Domain 지정
 
-        boolean isProdDomain = host != null && (
-                host.equalsIgnoreCase(prodRootDomain) || host.endsWith("." + prodRootDomain)
+        // 4) RT 쿠키 1회 세팅
+        ResponseCookie rtCookie = CookieUtils.makeRefreshCookie(
+                "RT", refreshToken, cookieDomain, "/", cookieMaxDays, https
         );
-        String sameSite = (https && isProdDomain) ? "None" : "Lax";
+        response.addHeader(HttpHeaders.SET_COOKIE, rtCookie.toString());
 
-        ResponseCookie.ResponseCookieBuilder cb = ResponseCookie.from("RT", refreshToken)
-                .httpOnly(true)
-                .secure(https)                  // HTTPS면 true, 로컬/HTTP면 false
-                .sameSite(sameSite)
-                .path("/")
-                .maxAge(Duration.ofDays(cookieMaxDays));
-
-        if (isProdDomain) {
-            cb.domain(prodRootDomain);         // 운영에서만 Domain 지정
-        }
-        response.addHeader(HttpHeaders.SET_COOKIE, cb.build().toString());
-
-        // ----- JSON 바디(AT/RT 동시) 반환 -----
+        // 5) JSON 바디 1회 반환
         record Tokens(String accessToken, String refreshToken) {}
-        ApiResponse<Tokens> body = ApiResponse.ok(new Tokens(accessToken, refreshToken));
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType("application/json;charset=UTF-8");
         response.setHeader("Cache-Control", "no-store");
-        response.getWriter().write(objectMapper.writeValueAsString(body));
+        response.getWriter().write(objectMapper.writeValueAsString(
+                ApiResponse.ok(new Tokens(accessToken, refreshToken))
+        ));
         response.getWriter().flush();
     }
 }
