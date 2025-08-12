@@ -7,23 +7,27 @@ import com.example.ei_backend.oauth2.CustomOAuth2FailureHandler;
 import com.example.ei_backend.oauth2.CustomOAuth2UserService;
 import com.example.ei_backend.oauth2.OAuth2SuccessHandler;
 import com.example.ei_backend.repository.UserRepository;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.RequestEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.client.endpoint.DefaultAuthorizationCodeTokenResponseClient;
-import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
-import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
-import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequestEntityConverter;
+import org.springframework.security.oauth2.client.endpoint.*;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -31,8 +35,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
 @RequiredArgsConstructor
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
@@ -44,32 +48,79 @@ public class SecurityConfig {
     private final JsonAuthenticationEntryPoint jsonAuthenticationEntryPoint;
     private final JsonAccessDeniedHandler jsonAccessDeniedHandler;
 
-    // ✅ 필터는 스프링이 생성한 빈(=@Component)을 주입받아 사용 (new 금지)
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // ⛔ JwtAuthenticationFilter @Bean 등록 불필요 (중복 방지)
-    // @Bean
-    // public JwtAuthenticationFilter jwtAuthenticationFilter(UserRepository userRepository) {
-    //     return new JwtAuthenticationFilter(jwtTokenProvider, userRepository);
-    // }
+    @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter(UserRepository userRepository) {
+        return new JwtAuthenticationFilter(jwtTokenProvider, userRepository);
+    }
 
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                )
+                //Saved request 캐시 끄기 (불필요한 세션 저장/리다이렉트 방지)
+                .requestCache(c -> c.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(
+                                "/", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**",
+                                "/webjars/**", "/swagger-ui.html", "/docs", "/docs/**",
+                                // 공개 엔드포인트만 지정
+                                "/api/auth/login",
+                                "/api/auth/signup",
+                                "/api/auth/reissue",
+                                "/api/auth/verify/**",
+                                "/oauth2/**", "/login/oauth2/**",
+                                "/actuator/health"
+                        ).permitAll()
+                        // 프로필 이미지는 인증 필수
+                        .requestMatchers(HttpMethod.PATCH,  "/api/auth/profile/image").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/auth/profile/image").authenticated()
+                        .requestMatchers("/api/s3/upload").authenticated()
+                        .anyRequest().authenticated()
+                )
+
+                // ✅ 401/403을 ApiResponse JSON으로 통일
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(jsonAuthenticationEntryPoint)
+                        .accessDeniedHandler(jsonAccessDeniedHandler)
+                )
+
+                .oauth2Login(oauth2 -> oauth2
+                        .tokenEndpoint(token -> token.accessTokenResponseClient(accessTokenResponseClient()))
+                        .userInfoEndpoint(userInfo -> userInfo.userService(oAuth2UserService))
+                        .successHandler(oAuth2SuccessHandler)
+                        .failureHandler(customOAuth2FailureHandler)
+                )
+
+                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
+                        UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    /**
+     * ✅ Spring Security 6.5+ 대응용 Kakao Token Client 설정
+     */
     @Bean
     public OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient() {
         var client = new DefaultAuthorizationCodeTokenResponseClient();
 
         client.setRequestEntityConverter(request -> {
-            OAuth2AuthorizationCodeGrantRequestEntityConverter defaultConverter =
-                    new OAuth2AuthorizationCodeGrantRequestEntityConverter();
+            OAuth2AuthorizationCodeGrantRequestEntityConverter defaultConverter = new OAuth2AuthorizationCodeGrantRequestEntityConverter();
             RequestEntity<?> entity = defaultConverter.convert(request);
 
-            @SuppressWarnings("unchecked")
             MultiValueMap<String, String> body = (MultiValueMap<String, String>) entity.getBody();
 
+            // ✅ request는 OAuth2AuthorizationCodeGrantRequest 타입임 (getClientRegistration() 사용 가능)
             body.add(OAuth2ParameterNames.CLIENT_ID, request.getClientRegistration().getClientId());
             body.add(OAuth2ParameterNames.CLIENT_SECRET, request.getClientRegistration().getClientSecret());
 
@@ -95,38 +146,24 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-
-        // ✅ WebSocket/SockJS 전용: 어떤 Origin이 와도 허용 (테스트용)
-        CorsConfiguration ws = new CorsConfiguration();
-        ws.setAllowedOriginPatterns(java.util.List.of("*")); // allowCredentials=true면 patterns 사용
-        ws.setAllowedMethods(java.util.List.of("GET","POST","OPTIONS"));
-        ws.setAllowedHeaders(java.util.List.of("*"));
-        ws.setAllowCredentials(true);
-        ws.setMaxAge(3600L);
-        source.registerCorsConfiguration("/ws-chat", ws);
-        source.registerCorsConfiguration("/ws-chat/**", ws);
-
-        // ✅ 나머지 API: 기존처럼 제한된 Origin만 허용
-        CorsConfiguration api = new CorsConfiguration();
-        api.setAllowedOrigins(java.util.List.of(
-                "http://localhost:8082",
-                "http://127.0.0.1:8082",
+        CorsConfiguration config = new CorsConfiguration();
+        // ✅ 허용할 프론트엔드 Origin만 명시
+        config.setAllowedOrigins(java.util.List.of(
                 "http://localhost:5173",
-                "http://localhost:63342",      // ★ 추가
-                "http://127.0.0.1:63342",      // ★ 추가
                 "https://www.dongcheolcoding.life",
                 "https://dongcheolcoding.life",
-                "http://dongcheolcoding.life",      // ★ 추가
-                "http://api.dongcheolcoding.life"
+                "http://dongcheolcoding.life"
         ));
-        api.setAllowedMethods(java.util.List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-        api.setAllowedHeaders(java.util.List.of("*"));
-        api.setExposedHeaders(java.util.List.of("Authorization","Location"));
-        api.setAllowCredentials(true);
-        api.setMaxAge(3600L);
-        source.registerCorsConfiguration("/**", api);
 
+        config.setAllowedMethods(java.util.List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
+        config.setAllowedHeaders(java.util.List.of("*"));          // Authorization 등 모든 요청 헤더 허용
+        config.setExposedHeaders(java.util.List.of("Authorization","Location")); // JS에서 읽을 응답 헤더
+        config.setAllowCredentials(true);                           // 쿠키/자격증명 사용 시 필수
+        config.setMaxAge(3600L);                                    // preflight 캐시
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
         return source;
+
     }
+
 }
