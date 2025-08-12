@@ -6,6 +6,7 @@ import com.example.ei_backend.domain.dto.CourseProgressDto;
 import com.example.ei_backend.domain.dto.MyPageResponseDto;
 import com.example.ei_backend.domain.dto.PaymentDto;
 import com.example.ei_backend.domain.dto.UserDto;
+import com.example.ei_backend.domain.dto.auth.LoginResult;
 import com.example.ei_backend.domain.email.EmailSender;
 import com.example.ei_backend.domain.entity.EmailVerification;
 import com.example.ei_backend.domain.entity.ProfileImage;
@@ -186,21 +187,24 @@ public class AuthService {
     }
 
     /** 로그인 */
-    @Transactional(readOnly = true)
-    public UserDto.Response login(String email, String password) {
+    @Transactional // ✅ readOnly=false
+    public LoginResult login(String email, String password) {
         User user = userRepository.findByEmailAndIsDeletedFalse(email)
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_CREDENTIALS));
 
+        // (도메인 모델 패턴이라면 user.verifyPassword(...)로 캡슐화)
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new CustomException(ErrorCode.INVALID_CREDENTIALS);
         }
 
-        String accessToken = jwtTokenProvider.generateAccessToken(
-                user.getEmail(),
-                user.getRoles().stream().map(Enum::name).toList()
-        );
+        var roles = user.getRoles().stream().map(Enum::name).toList();
+
+        String accessToken  = jwtTokenProvider.generateAccessToken(user.getEmail(), roles);
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
 
+        // ✅ RT 회전 저장 (email 기준 1개 유지)
+        refreshTokenRepository.findByEmail(user.getEmail())
+                .ifPresent(refreshTokenRepository::delete);
         refreshTokenRepository.save(
                 RefreshToken.builder()
                         .email(user.getEmail())
@@ -208,7 +212,7 @@ public class AuthService {
                         .build()
         );
 
-        return UserDto.Response.fromEntity(user, accessToken);
+        return new LoginResult(user.getId(), user.getEmail(), roles, accessToken, refreshToken);
     }
 
     /** 관리자 검색 */

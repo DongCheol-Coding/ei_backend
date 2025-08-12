@@ -1,10 +1,11 @@
 package com.example.ei_backend.controller;
 
 import com.example.ei_backend.config.ApiResponse;
-import com.example.ei_backend.domain.dto.ChangePasswordRequestDto;
+import com.example.ei_backend.domain.dto.chat.ChangePasswordRequestDto;
 import com.example.ei_backend.domain.dto.DeleteAccountRequestDto;
 import com.example.ei_backend.domain.dto.TokenResponseDto;
 import com.example.ei_backend.domain.dto.UserDto;
+import com.example.ei_backend.domain.dto.auth.LoginResult;
 import com.example.ei_backend.domain.entity.RefreshToken;
 import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.exception.CustomException;
@@ -16,6 +17,7 @@ import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -36,6 +38,13 @@ public class AuthController {
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
 
+    @Value("${app.cookie.domain: localhost}")
+    private String cookieDomain;
+
+    private static final String RT_COOKIE = "RT";
+    private static final String RT_PATH   = "/"; // 재발급 전용이면 "/api/auth/reissue" 로 좁혀도 됨
+    private static final long   RT_DAYS   = 14L;
+
     /** 회원가입 요청 (인증 메일 발송) */
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<String>> signup(@Valid @RequestBody UserDto.Request dto) {
@@ -55,16 +64,11 @@ public class AuthController {
 
     /** 로그인 */
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<TokenResponseDto>> login(@RequestBody UserDto.LoginRequest request) {
-        // 서비스에서 사용자 검증 및 토큰 저장(리프레시)까지 수행
-        UserDto.Response user = authService.login(request.getEmail(), request.getPassword());
-
-        // access/refresh 발급 (access는 서비스에서 이미 만들었어도 여기서 일관되게 재발급 가능)
-        List<String> roles = user.getRoles().stream().map(Enum::name).toList();
-        String accessToken = jwtTokenProvider.generateAccessToken(request.getEmail(), roles);
-        String refreshToken = jwtTokenProvider.generateRefreshToken(request.getEmail());
-
-        return ResponseEntity.ok(ApiResponse.ok(new TokenResponseDto(accessToken, refreshToken)));
+    public ResponseEntity<ApiResponse<TokenResponseDto>> login(@RequestBody UserDto.LoginRequest req) {
+        LoginResult result = authService.login(req.getEmail(), req.getPassword());
+        return ResponseEntity.ok(
+                ApiResponse.ok(new TokenResponseDto(result.accessToken(), result.refreshToken()))
+        );
     }
 
     /** 비밀번호 변경 */

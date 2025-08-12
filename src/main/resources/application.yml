@@ -69,6 +69,9 @@ spring:
 app:
   client:
     host: ${CLIENT_HOST}
+  cookie:
+    root-domain: dongcheolcoding.life
+    max-days: 14
 
 cloud:
   aws:
@@ -113,8 +116,11 @@ kakaopay:
     cid: TC0ONETIME
     secret:
       key: ${KAKAO_SECRET_KEY}
-    approval-url: http://3.37.253.185/api/payment/approve
-    cancel-url: http://3.37.253.185/api/payment/cancel
-    fail-url: http://3.37.253.185/api/payment/fail
+    approval-url: http://api.dongcheolcoding.life/api/payment/approve
+    cancel-url: http://api.dongcheolcoding.life/api/payment/cancel
+    fail-url: http://api.dongcheolcoding.life/api/payment/fail
+
+
+
 
 
