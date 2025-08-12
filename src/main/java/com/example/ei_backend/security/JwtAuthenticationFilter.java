@@ -18,20 +18,22 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-        private final JwtTokenProvider jwtTokenProvider;
-        private final UserRepository userRepository;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
 
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, UserRepository userRepository) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userRepository = userRepository;
-        log.info(" JwtAuthenticationFilter 생성됨");
+        log.info("JwtAuthenticationFilter 생성됨");
     }
-
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        log.info("[JwtFilter] 요청 경로: " + path);
+        log.info("[JwtFilter] 요청 경로: {}", path);
+
+        // ✅ SockJS 핸드셰이크/정보/웹소켓 경로는 필터 우회 (Handshake 인터셉터에서 토큰 검증)
+        if (path.startsWith("/ws-chat")) return true;
 
         return path.startsWith("/swagger-ui")
                 || path.equals("/swagger-ui.html")
@@ -54,12 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        log.info(" JwtAuthenticationFilter 실행됨: {}", request.getRequestURI());
-        log.info(" doFilterInternal 호출됨");
-
-        //  OncePerRequestFilter는 shouldNotFilter를 자동으로 호출합니다.
-        // 아래 수동 호출은 없어도 됩니다. (남겨도 동작엔 문제 없음)
-        // if (shouldNotFilter(request)) { filterChain.doFilter(request, response); return; }
+        log.info("JwtAuthenticationFilter 실행: {}", request.getRequestURI());
 
         try {
             String header = request.getHeader("Authorization");
@@ -68,21 +65,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 if (jwtTokenProvider.validateToken(token)) {
                     String email = jwtTokenProvider.getEmail(token);
-                    // List<String> roles = jwtTokenProvider.getRoles(token); // 토큰에서 꺼내도 OK
 
-                    // ✅ 유저 조회 (예외 던지지 말기!)
                     userRepository.findByEmail(email).ifPresentOrElse(user -> {
                         UserPrincipal principal = new UserPrincipal(user);
 
-                        UsernamePasswordAuthenticationToken auth =
-                                new UsernamePasswordAuthenticationToken(
-                                        principal,
-                                        null,
-                                        principal.getAuthorities() // 토큰 roles 대신 실제 권한 사용 권장
-                                );
+                        var auth = new UsernamePasswordAuthenticationToken(
+                                principal,
+                                null,
+                                principal.getAuthorities()
+                        );
                         auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(auth);
-                        log.info(" 인증 완료: {}", email);
+                        log.info("인증 완료: {}", email);
                     }, () -> {
                         log.info("유저를 찾을 수 없습니다: {}", email);
                         SecurityContextHolder.clearContext();
@@ -97,12 +91,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.clearContext();
             }
         } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
-            //  JWT 파싱/검증 예외는 500로 올리면 안 됨 → 컨텍스트만 비우고 통과
             log.warn("JWT 처리 중 예외: {}", e.getMessage());
             SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
     }
-
 }

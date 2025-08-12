@@ -1,4 +1,4 @@
-package com.example.ei_backend.domain.dto;
+package com.example.ei_backend.domain.dto.chat;
 
 import lombok.Getter;
 import lombok.Setter;
