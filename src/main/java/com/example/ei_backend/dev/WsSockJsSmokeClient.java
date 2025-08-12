@@ -19,7 +19,7 @@ public class WsSockJsSmokeClient {
     // 실행 예: java ... WsSockJsSmokeClient ws://localhost:8080 <JWT> 1
     public static void main(String[] args) throws Exception {
         String base = args.length > 0 ? args[0] : "ws://localhost:8080";
-        String jwt  = args.length > 1 ? args[1] : "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtZW1iZXIxQHRlc3QuY29tIiwicm9sZXMiOlsiUk9MRV9NRU1CRVIiXSwiaWF0IjoxNzU0OTg4MTc0LCJleHAiOjE3NTQ5ODk5NzR9.MgRrqvw7dPP6YyioWueRinjU_fOn-L-D2HHLIHKpn-A";
+        String jwt  = args.length > 1 ? args[1] : "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtZW1iZXIxQHRlc3QuY29tIiwicm9sZXMiOlsiUk9MRV9NRU1CRVIiXSwiaWF0IjoxNzU0OTg5NTMxLCJleHAiOjE3NTQ5OTEzMzF9.aQXrZPLvyJsBaMs_1YEzXuzi9JecPc5zj5ePPApOZuk";
         long roomId = args.length > 2 ? Long.parseLong(args[2]) : 1L;
 
         // ✅ SockJS 대신 네이티브 WebSocket 클라이언트
