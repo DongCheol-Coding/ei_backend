@@ -151,7 +151,8 @@ public class SecurityConfig {
         config.setAllowedOrigins(java.util.List.of(
                 "http://localhost:5173",
                 "https://www.dongcheolcoding.life",
-                "https://dongcheolcoding.life"
+                "https://dongcheolcoding.life",
+                "http://dongcheolcoding.life"
         ));
 
         config.setAllowedMethods(java.util.List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
