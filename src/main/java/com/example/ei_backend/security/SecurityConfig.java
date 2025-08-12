@@ -79,7 +79,9 @@ public class SecurityConfig {
                                 "/api/auth/verify/**",
                                 "/oauth2/**", "/login/oauth2/**",
                                 "/actuator/health",
-                                "/ws-chat", "/ws-chat/**"       // ✅ SockJS 엔드포인트 전체 허용
+                                "/ws-chat",
+                                "/ws-chat/**",
+                                "/test/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.PATCH, "/api/auth/profile/image").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/auth/profile/image").authenticated()
@@ -155,6 +157,8 @@ public class SecurityConfig {
         // ✅ 나머지 API: 기존처럼 제한된 Origin만 허용
         CorsConfiguration api = new CorsConfiguration();
         api.setAllowedOrigins(java.util.List.of(
+                "http://localhost:8082",
+                "http://127.0.0.1:8082",
                 "http://localhost:5173",
                 "https://www.dongcheolcoding.life",
                 "https://dongcheolcoding.life",
