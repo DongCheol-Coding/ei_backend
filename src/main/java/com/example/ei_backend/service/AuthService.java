@@ -300,4 +300,9 @@ public class AuthService {
         }
         return code.toString();
     }
+
+    @Transactional
+    public void logout(String email) {
+        refreshTokenRepository.findByEmail(email).ifPresent(refreshTokenRepository::delete);
+    }
 }

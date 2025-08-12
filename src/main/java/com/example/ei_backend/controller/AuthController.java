@@ -13,12 +13,17 @@ import com.example.ei_backend.exception.ErrorCode;
 import com.example.ei_backend.repository.RefreshTokenRepository;
 import com.example.ei_backend.repository.UserRepository;
 import com.example.ei_backend.security.JwtTokenProvider;
+import com.example.ei_backend.security.UserDetailsImpl;
 import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.AuthService;
+import com.example.ei_backend.util.CookieUtils;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -64,11 +69,57 @@ public class AuthController {
 
     /** 로그인 */
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<TokenResponseDto>> login(@RequestBody UserDto.LoginRequest req) {
+    public ResponseEntity<ApiResponse<TokenResponseDto>> login(
+            @RequestBody UserDto.LoginRequest req,
+            HttpServletRequest httpReq,
+            HttpServletResponse httpRes
+    ) {
+        // 서비스: 사용자 검증 + AT/RT 생성 + RT DB 저장
         LoginResult result = authService.login(req.getEmail(), req.getPassword());
-        return ResponseEntity.ok(
-                ApiResponse.ok(new TokenResponseDto(result.accessToken(), result.refreshToken()))
+        String accessToken  = result.accessToken();
+        String refreshToken = result.refreshToken();
+
+        // 요청 기반 HTTPS/도메인 분기 (OAuth2SuccessHandler와 동일)
+        String scheme = java.util.Optional.ofNullable(httpReq.getHeader("X-Forwarded-Proto"))
+                .orElse(httpReq.getScheme());
+        String host   = java.util.Optional.ofNullable(httpReq.getHeader("X-Forwarded-Host"))
+                .orElse(httpReq.getServerName());
+
+        boolean https = "https".equalsIgnoreCase(scheme);
+        String root   = "dongcheolcoding.life"; // 운영 루트 도메인
+        boolean isProdDomain = host.equalsIgnoreCase(root) || host.endsWith("." + root);
+        String cookieDomain  = isProdDomain ? root : null; // 운영만 Domain 지정, 그 외 host-only
+
+        // RT 쿠키 추가
+        ResponseCookie rtCookie = CookieUtils.makeRefreshCookie(
+                "RT", refreshToken, cookieDomain, "/", 14, https
         );
+        httpRes.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, rtCookie.toString());
+
+        // 응답 바디(AT만 보내도 되고, 현재처럼 AT/RT 둘 다 보내도 됨)
+        return ResponseEntity.ok(
+                ApiResponse.ok(new TokenResponseDto(accessToken, refreshToken))
+        );
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletRequest req, HttpServletResponse res,
+                                       @AuthenticationPrincipal UserDetailsImpl principal) {
+        String email = principal.getUsername();
+        authService.logout(email); // RT 레코드 삭제 (deleteByEmail 등)
+
+        String scheme = java.util.Optional.ofNullable(req.getHeader("X-Forwarded-Proto"))
+                .orElse(req.getScheme());
+        String host   = java.util.Optional.ofNullable(req.getHeader("X-Forwarded-Host"))
+                .orElse(req.getServerName());
+        boolean https = "https".equalsIgnoreCase(scheme);
+        String root   = "dongcheolcoding.life";
+        boolean isProdDomain = host.equalsIgnoreCase(root) || host.endsWith("." + root);
+        String cookieDomain  = isProdDomain ? root : null;
+
+        ResponseCookie del = CookieUtils.deleteCookie("RT", cookieDomain, "/", https);
+        res.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE, del.toString());
+        return ResponseEntity.noContent().build();
     }
 
     /** 비밀번호 변경 */
