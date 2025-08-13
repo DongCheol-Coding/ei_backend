@@ -51,13 +51,17 @@ jobs:
           scp "$JAR_NAME" ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/app.jar
 
           echo "🔁 EC2 애플리케이션 재시작 중..."
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          # 기존 프로세스 종료
           pkill -f 'java -jar' || true
-        
+
           echo "🔐 환경변수 설정 및 앱 실행..."
           nohup env \
           JWT_SECRET="${{ secrets.JWT_SECRET }}" \
           KAKAO_SECRET_KEY="${{ secrets.KAKAO_SECRET_KEY }}" \
+          KAKAO_CLIENT_ID="${{ secrets.KAKAO_CLIENT_ID }}" \
+          KAKAO_CLIENT_SECRET="${{ secrets.KAKAO_CLIENT_SECRET }}" \
+          KAKAO_REDIRECT_URI="${{ secrets.KAKAO_REDIRECT_URI }}" \
           DATABASE_USERNAME="${{ secrets.DATABASE_USERNAME }}" \
           DATABASE_PASSWORD="${{ secrets.DATABASE_PASSWORD }}" \
           DRIVER_CLASS_NAME="${{ secrets.DRIVER_CLASS_NAME }}" \
@@ -67,19 +71,20 @@ jobs:
           AWS_SECRET_KEY="${{ secrets.AWS_SECRET_KEY }}" \
           BUCKET_NAME="${{ secrets.BUCKET_NAME }}" \
           java -jar /home/ubuntu/app.jar \
-          --server.port=8080 --server.address=0.0.0.0 > log.txt 2>&1 &
-        
-          echo "⏳ 서버 시작 대기 중..."
-          sleep 10
-        
-          echo "📄 로그 확인 시도..."
-          if [ -f log.txt ]; then
-          tail -n 20 log.txt || echo "❌ 로그 파일 tail 실패"
-          else
-          echo "❌ log.txt 파일 없음 (앱 실행 실패 가능성)"
-          fi
-          EOF
+          --server.port=8081 --server.address=0.0.0.0 > /home/ubuntu/ei-backend.log 2>&1 &
 
+          echo "⏳ 서버 시작 대기 중..."
+          sleep 8
+
+          echo "🩺 헬스체크"
+          curl -s -I https://api.dongcheolcoding.life/actuator/health | sed -n '1p'
+
+          echo "🔍 카카오 redirect_uri 확인(https 고정 확인)"
+          curl -s -I "https://api.dongcheolcoding.life/oauth2/authorization/kakao" | sed -n 's/^location:/Location:/Ip'
+
+          echo "📄 최근 로그 50줄"
+          tail -n 50 /home/ubuntu/ei-backend.log || true
+          EOF
 
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
