@@ -160,7 +160,7 @@ public class SecurityConfig {
                 "https://www.dongcheolcoding.life",
                 "https://dongcheolcoding.life",
                 "https://api.dongcheolcoding.life",
-                 "http://localhost:8080"
+                "http://localhost:8080"
 
         ));
 
