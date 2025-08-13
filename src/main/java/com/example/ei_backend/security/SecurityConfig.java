@@ -158,7 +158,9 @@ public class SecurityConfig {
         config.setAllowedOrigins(java.util.List.of(
                 "http://localhost:5173",
                 "https://www.dongcheolcoding.life",
-                "https://dongcheolcoding.life"
+                "https://dongcheolcoding.life",
+                "https://api.dongcheolcoding.life",
+                "http://localhost:8080"
 
         ));
 
