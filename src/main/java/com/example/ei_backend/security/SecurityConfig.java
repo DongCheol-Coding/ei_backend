@@ -80,7 +80,8 @@ public class SecurityConfig {
                                 "/api/auth/reissue",
                                 "/api/auth/verify/**",
                                 "/oauth2/**", "/login/oauth2/**",
-                                "/actuator/health"
+                                "/actuator/health",
+                                "/.well-known/**"
                         ).permitAll()
                         // 프로필 이미지는 인증 필수
                         .requestMatchers(HttpMethod.PATCH,  "/api/auth/profile/image").authenticated()
@@ -157,8 +158,8 @@ public class SecurityConfig {
         config.setAllowedOrigins(java.util.List.of(
                 "http://localhost:5173",
                 "https://www.dongcheolcoding.life",
-                "https://dongcheolcoding.life",
-                "http://dongcheolcoding.life"
+                "https://dongcheolcoding.life"
+
         ));
 
         config.setAllowedMethods(java.util.List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
