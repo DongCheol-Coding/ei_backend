@@ -74,7 +74,7 @@
         root-domain: "dongcheolcoding.life"
         max-days: 14
       front:
-        success-url: "http://dongcheolcoding.life/account/kakaoauth"
+        success-url: "https://dongcheolcoding.life/account/kakaoauth"
 
     cloud:
       aws:
@@ -119,9 +119,9 @@
         cid: TC0ONETIME
         secret:
           key: ${KAKAO_SECRET_KEY}
-        approval-url: http://api.dongcheolcoding.life/api/payment/approve
-        cancel-url: http://api.dongcheolcoding.life/api/payment/cancel
-        fail-url: http://api.dongcheolcoding.life/api/payment/fail
+        approval-url: https://api.dongcheolcoding.life/api/payment/approve
+        cancel-url: https://api.dongcheolcoding.life/api/payment/cancel
+        fail-url: https://api.dongcheolcoding.life/api/payment/fail
 
 
 
