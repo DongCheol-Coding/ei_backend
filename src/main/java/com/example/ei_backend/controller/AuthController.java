@@ -200,4 +200,13 @@ public class AuthController {
         authService.deleteProfileImage(principal.getUserId());
         return ResponseEntity.ok(ApiResponse.ok("프로필 이미지가 삭제되었습니다."));
     }
+
+    /** 현재 로그인 사용자 정보 조회 */
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserDto.Response>> me(@AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) throw new CustomException(ErrorCode.UNAUTHORIZED);
+        User user = userRepository.findByEmail(principal.getUsername())
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        return ResponseEntity.ok(ApiResponse.ok(UserDto.Response.from(user)));
+    }
 }

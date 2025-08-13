@@ -73,6 +73,17 @@ public class UserDto {
             response.message = message;
             return response;
         }
+
+        public static Response from(User user) {
+            return Response.builder()
+                    .id(user.getId())
+                    .email(user.getEmail())
+                    .name(user.getName())
+                    .phone(user.getPhone())
+                    .imageUrl(user.getProfileImage() != null ? user.getProfileImage().getImageUrl() : null)
+                    .roles(user.getRoles())
+                    .build();
+        }
     }
 
     @Getter @Setter
