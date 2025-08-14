@@ -11,13 +11,22 @@ import java.util.Map;
 
 @Component
 public class UserPrincipalHandshakeHandler extends DefaultHandshakeHandler {
+
     @Override
     protected Principal determineUser(ServerHttpRequest request,
                                       WebSocketHandler wsHandler,
                                       Map<String, Object> attributes) {
-        var userDetails = (UserDetailsImpl) attributes.get("userDetails"); // 인터셉터에서 넣어둔 값
-        return (userDetails != null)
-                ? new StompPrincipal(userDetails.getUsername()) // 이메일 전달
-                : null;
+
+        // 1) 인터셉터가 심어둔 userDetails 우선
+        UserDetailsImpl ud = (UserDetailsImpl) attributes.get("userDetails");
+        String email = (ud != null) ? ud.getUsername() : null;
+
+        // 2) 없으면 email 키로 fallback (인터셉터가 같이 넣어둠)
+        if (email == null) {
+            email = (String) attributes.get("email");
+        }
+
+        // 3) 최종 결정
+        return (email != null && !email.isBlank()) ? new StompPrincipal(email) : null;
     }
 }

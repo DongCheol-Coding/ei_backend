@@ -68,6 +68,7 @@ public class SecurityConfig {
                 )
                 //Saved request 캐시 끄기 (불필요한 세션 저장/리다이렉트 방지)
                 .requestCache(c -> c.disable())
+                .logout(l -> l.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -81,7 +82,9 @@ public class SecurityConfig {
                                 "/api/auth/verify/**",
                                 "/oauth2/**", "/login/oauth2/**",
                                 "/actuator/health",
-                                "/.well-known/**"
+                                "/.well-known/**",
+                                "/ws-chat", "/ws-chat/**", "/ws-chat-sockjs", "/ws-chat-sockjs/**"
+
                         ).permitAll()
                         // 프로필 이미지는 인증 필수
                         .requestMatchers(HttpMethod.PATCH,  "/api/auth/profile/image").authenticated()
@@ -90,9 +93,9 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
 
-                // ✅ 401/403을 ApiResponse JSON으로 통일
+                //  401/403을 ApiResponse JSON으로 통일
                 .exceptionHandling(ex -> ex
-                        // ✅ /api/**는 반드시 JSON 401 (리다이렉트 금지)
+                        //  /api/**는 반드시 JSON 401 (리다이렉트 금지)
                         .defaultAuthenticationEntryPointFor(
                                 jsonAuthenticationEntryPoint,
                                 new AntPathRequestMatcher("/api/**")
@@ -115,7 +118,7 @@ public class SecurityConfig {
     }
 
     /**
-     * ✅ Spring Security 6.5+ 대응용 Kakao Token Client 설정
+     *  Spring Security 6.5+ 대응용 Kakao Token Client 설정
      */
     @Bean
     public OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient() {
