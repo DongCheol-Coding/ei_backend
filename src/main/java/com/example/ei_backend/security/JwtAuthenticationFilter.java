@@ -36,7 +36,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         log.info("[JwtFilter] 요청 경로: {}", path);
 
         // ✅ SockJS/WS 경로는 핸드셰이크 인터셉터에서 검증하므로 필터 우회
-        if (path.startsWith("/ws-chat")) return true;
+        if (path.startsWith("/ws-chat") || path.startsWith("/ws-chat-sockjs")) return true;
 
         return path.startsWith("/swagger-ui")
                 || path.equals("/swagger-ui.html")

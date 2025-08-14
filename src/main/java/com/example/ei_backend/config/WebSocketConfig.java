@@ -22,11 +22,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // 1) 네이티브 WS (Postman 테스트용)
         registry.addEndpoint("/ws-chat")
-                .addInterceptors(jwtHandshakeInterceptor)          // (현재 방식 유지 시) ?token= 검증
-                .setHandshakeHandler(userPrincipalHandshakeHandler) // Principal 주입
+                .addInterceptors(jwtHandshakeInterceptor)
+                .setHandshakeHandler(userPrincipalHandshakeHandler)
+                .setAllowedOriginPatterns("*"); // withSockJS() 없음!
+
+        // 2) 기존 SockJS 엔드포인트 (프론트에서 SockJS 클라이언트 쓸 때)
+        registry.addEndpoint("/ws-chat-sockjs")
+                .addInterceptors(jwtHandshakeInterceptor)
+                .setHandshakeHandler(userPrincipalHandshakeHandler)
                 .setAllowedOriginPatterns("*")
-                .withSockJS(); // SockJS 쓰면 실제로는 /ws-chat/** 로 내부 경로가 생깁니다.
+                .withSockJS();
     }
 
     @Override
