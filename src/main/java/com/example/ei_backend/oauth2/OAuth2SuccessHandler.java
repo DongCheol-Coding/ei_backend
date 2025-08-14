@@ -32,8 +32,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                                         Authentication authentication) throws IOException {
 
         if (!(authentication.getPrincipal() instanceof CustomOAuth2User customUser)) {
-            boolean isProd = isProd(request);
-            response.sendRedirect(resolveFrontSuccessUrl(isProd)); // 실패 시에도 프론트로
+            boolean prod = isProd(request);
+            response.sendRedirect(resolveFrontSuccessUrl(prod));
             return;
         }
 
@@ -52,16 +52,15 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 .token(refreshToken)
                 .build());
 
-        // 3) 프록시 환경에서 HTTPS/도메인 판별
-        boolean https = isHttps(request);
-        String root   = "dongcheolcoding.life";
-        String host   = Optional.ofNullable(request.getHeader("X-Forwarded-Host"))
+        // 3) 프록시 환경에서 HTTPS/도메인 판별 (여기서 '한 번만' 계산)
+        boolean https   = isHttps(request);
+        String  root    = "dongcheolcoding.life";
+        String  host    = Optional.ofNullable(request.getHeader("X-Forwarded-Host"))
                 .orElse(request.getServerName());
-        boolean isProd = host != null && (host.equalsIgnoreCase(root) || host.endsWith("." + root));
-        String cookieDomain = isProd ? root : null; // 운영만 도메인 쿠키
+        boolean isProd  = host != null && (host.equalsIgnoreCase(root) || host.endsWith("." + root));
+        String  cookieDomain = isProd ? root : null; // 운영만 도메인 쿠키
 
-        // SameSite: 서브도메인 간에는 schemeful same-site 이므로 Lax로 충분
-        String sameSite = "Lax";
+        String sameSite = "Lax"; // schemeful same-site라 Lax로 충분
 
         // 4) 쿠키 세팅 (HttpOnly + Secure 조건부)
         ResponseCookie rtCookie = ResponseCookie.from("RT", refreshToken)
@@ -73,18 +72,30 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         response.addHeader(HttpHeaders.SET_COOKIE, rtCookie.toString());
         response.addHeader(HttpHeaders.SET_COOKIE, atCookie.toString());
 
-        // 5) 세션/컨텍스트 정리 (원하면 유지해도 무방)
+        // 5) 세션/컨텍스트 정리
         var session = request.getSession(false);
         if (session != null) session.invalidate();
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
 
-        // 6) JSESSIONID 삭제(있으면)
-        ResponseCookie killJsessionId = ResponseCookie.from("JSESSIONID", "")
-                .maxAge(0).path("/").build();
-        response.addHeader(HttpHeaders.SET_COOKIE, killJsessionId.toString());
+        // 6) JSESSIONID 삭제 — (1) 도메인 없는 버전
+        ResponseCookie killJsessionIdHostOnly = ResponseCookie.from("JSESSIONID", "")
+                .path("/").maxAge(0).build();
+        response.addHeader(HttpHeaders.SET_COOKIE, killJsessionIdHostOnly.toString());
 
-        // 7) 프론트로 리다이렉트 (운영은 https)
+        // 7) 운영이면 (2) 도메인 지정 버전도 같이 삭제
+        if (cookieDomain != null) {
+            ResponseCookie killJsessionIdWithDomain = ResponseCookie.from("JSESSIONID", "")
+                    .path("/").domain(cookieDomain)
+                    .sameSite(sameSite)     // 삭제에도 붙여주면 브라우저별로 안전
+                    .secure(https)
+                    .maxAge(0)
+                    .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, killJsessionIdWithDomain.toString());
+        }
+
+        // 8) 프론트로 리다이렉트
         response.sendRedirect(resolveFrontSuccessUrl(isProd));
+
     }
 
     private boolean isHttps(HttpServletRequest req) {

@@ -19,6 +19,7 @@ import com.example.ei_backend.service.AuthService;
 import com.example.ei_backend.util.CookieUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -118,18 +119,37 @@ public class AuthController {
         boolean isProd = host.equalsIgnoreCase(root) || host.endsWith("." + root);
         String domain = isProd ? root : null;
 
+        // ✅ SecurityContext 및 세션 정리
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        HttpSession session = req.getSession(false);
+        if (session != null) session.invalidate();
+
+        // ✅ AT/RT 삭제(기존 코드 유지)
         ResponseCookie clearAt = ResponseCookie.from("AT", "")
                 .httpOnly(true).secure(https).sameSite("None")
                 .path("/").domain(domain).maxAge(0).build();
-
         ResponseCookie clearRt = ResponseCookie.from("RT", "")
                 .httpOnly(true).secure(https).sameSite("None")
                 .path("/").domain(domain).maxAge(0).build();
-
         res.addHeader(HttpHeaders.SET_COOKIE, clearAt.toString());
         res.addHeader(HttpHeaders.SET_COOKIE, clearRt.toString());
+
+        // ✅ JSESSIONID 삭제 — 도메인 없는 버전
+        ResponseCookie clearJsidHostOnly = ResponseCookie.from("JSESSIONID", "")
+                .httpOnly(true).secure(https).path("/").maxAge(0).build();
+        res.addHeader(HttpHeaders.SET_COOKIE, clearJsidHostOnly.toString());
+
+        // ✅ JSESSIONID 삭제 — 도메인 지정 버전(배포 환경에서만)
+        if (domain != null) {
+            ResponseCookie clearJsidWithDomain = ResponseCookie.from("JSESSIONID", "")
+                    .httpOnly(true).secure(https).sameSite("None")
+                    .path("/").domain(domain).maxAge(0).build();
+            res.addHeader(HttpHeaders.SET_COOKIE, clearJsidWithDomain.toString());
+        }
+
         return ResponseEntity.noContent().build();
     }
+
 
     /** 비밀번호 변경 */
     @PatchMapping("/password")
