@@ -81,7 +81,9 @@ public class SecurityConfig {
                                 "/api/auth/verify/**",
                                 "/oauth2/**", "/login/oauth2/**",
                                 "/actuator/health",
-                                "/.well-known/**"
+                                "/.well-known/**",
+                                "/ws-chat", "/ws-chat/**", "/ws-chat-sockjs", "/ws-chat-sockjs/**"
+
                         ).permitAll()
                         // 프로필 이미지는 인증 필수
                         .requestMatchers(HttpMethod.PATCH,  "/api/auth/profile/image").authenticated()

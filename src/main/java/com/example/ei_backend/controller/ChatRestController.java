@@ -18,11 +18,9 @@ public class ChatRestController {
 
     private final ChatService chatService;
 
-    // 멤버가 상담자 이메일로 방 열기(기존 있으면 그 방 id 반황)
     @PostMapping("/open")
     public ResponseEntity<Long> openRoom(@RequestParam String supportEmail,
-                                         @AuthenticationPrincipal UserPrincipal  principal) {
-        String memberEmail = principal.getUsername();
+                                         @AuthenticationPrincipal(expression = "username") String memberEmail) {
         Long roomId = chatService.openRoom(memberEmail, supportEmail);
         return ResponseEntity.ok(roomId);
     }

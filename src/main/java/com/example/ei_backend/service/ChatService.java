@@ -1,10 +1,12 @@
 package com.example.ei_backend.service;
 
+import com.example.ei_backend.domain.UserRole;
 import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.domain.entity.chat.ChatMessage;
 import com.example.ei_backend.domain.entity.chat.ChatRoom;
 import com.example.ei_backend.exception.CustomException;
 import com.example.ei_backend.exception.ErrorCode;
+import com.example.ei_backend.exception.NotFoundException;
 import com.example.ei_backend.repository.ChatMessageRepository;
 import com.example.ei_backend.repository.ChatRoomRepository;
 import com.example.ei_backend.repository.UserRepository;
@@ -28,21 +30,21 @@ public class ChatService {
      */
     @Transactional
     public Long openRoom(String memberEmail, String supportEmail) {
-        User member = userRepository.findByEmail(memberEmail)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        User support = userRepository.findByEmail(supportEmail)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        User member = userRepository.findByEmailAndIsDeletedFalse(memberEmail)
+                .orElseThrow(() -> new NotFoundException("member"));
 
-        //같은 조합의 중복 채팅방 방지
-        return chatRoomRepository.findByMemberAndSupport(member, support)
-                .map(ChatRoom::getId)
-                .orElseGet(() -> {
-                    ChatRoom room = ChatRoom.builder()
-                            .member(member)
-                            .support(support)
-                            .build();
-                    return chatRoomRepository.save(room).getId();
-                });
+        User support = userRepository.findByEmailAndIsDeletedFalse(supportEmail)
+                .filter(u -> u.getRoles().contains(UserRole.ROLE_SUPPORT)) // roles 매핑이 있다면
+                .orElseThrow(() -> new NotFoundException("support"));
+
+        ChatRoom room = chatRoomRepository.findByMemberAndSupport(member, support)
+                .orElseGet(() -> chatRoomRepository.save(
+                        ChatRoom.builder()
+                                .member(member)
+                                .support(support)
+                                .build()));
+
+        return room.getId();
     }
 
     /**
