@@ -50,6 +50,7 @@ public class UserDto {
         private String token;
         private String phone;
         private String birthDate;
+        private boolean isSocial;
         private String imageUrl;
         private Set<UserRole> roles;
 
@@ -64,6 +65,7 @@ public class UserDto {
                     .phone(user.getPhone())
                     .imageUrl(user.getProfileImage() != null ? user.getProfileImage().getImageUrl() : null)
                     .roles(user.getRoles())
+                    .isSocial(user.isSocial())
                     .token(token)
                     .build();
         }
@@ -82,6 +84,7 @@ public class UserDto {
                     .phone(user.getPhone())
                     .imageUrl(user.getProfileImage() != null ? user.getProfileImage().getImageUrl() : null)
                     .roles(user.getRoles())
+                    .isSocial(user.isSocial())
                     .build();
         }
     }
