@@ -9,25 +9,22 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface LectureMapper {
-
-    // 기본 DTO
     @Mapping(target = "courseId", source = "course.id")
     LectureDto toDto(Lecture e);
 
     @Mapping(target = "id", source = "e.id")
     @Mapping(target = "title", source = "e.title")
     @Mapping(target = "orderIndex", source = "e.orderIndex")
-    @Mapping(target ="durationSec", source = "e.durationSec")
-    @Mapping(target="progress", expression="java(progress)")
+    @Mapping(target = "durationSec", source = "e.durationSec")
+    @Mapping(target = "progress", expression = "java(progress)")
     LectureSummaryDto toSummary(Lecture e, double progress);
 
     @Mapping(target = "id", source = "e.id")
     @Mapping(target = "courseId", source = "e.course.id")
+    @Mapping(target = "title", source = "e.title")
     @Mapping(target = "description", source = "e.description")
     @Mapping(target = "durationSec", source = "e.durationSec")
     @Mapping(target = "videoUrl", expression = "java(videoUrl)")
     @Mapping(target = "progress", expression = "java(progress)")
-    @Mapping(target = "title", source = "e.title")
     LectureDetailDto toDetail(Lecture e, String videoUrl, double progress);
-
 }
