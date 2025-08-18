@@ -75,6 +75,7 @@
         max-days: 14
       front:
         success-url: "https://dongcheolcoding.life/account/kakaoauth"
+      cdn-base-url: https://cdn.dongcheolcoding.life
 
     cloud:
       aws:
