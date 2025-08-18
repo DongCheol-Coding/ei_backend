@@ -27,6 +27,7 @@ public interface LectureMapper {
     @Mapping(target = "durationSec", source = "e.durationSec")
     @Mapping(target = "videoUrl", expression = "java(videoUrl)")
     @Mapping(target = "progress", expression = "java(progress)")
+    @Mapping(target = "title", source = "e.title")
     LectureDetailDto toDetail(Lecture e, String videoUrl, double progress);
 
 }
