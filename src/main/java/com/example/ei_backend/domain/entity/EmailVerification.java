@@ -25,6 +25,7 @@ public class EmailVerification {
     @Column(name = "expiration_time")
     private LocalDateTime expirationTime;
 
+    @Builder.Default
     @Column(name = "is_verified")
     private boolean isVerified = false;
 
