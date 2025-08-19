@@ -94,15 +94,12 @@ public class AuthController {
     )
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "302", description = "성공 리다이렉트",
+                    responseCode = "302",
+                    description = "리다이렉트 (성공/실패 모두 302)",
                     headers = {
-                            @Header(name = "Set-Cookie", description = "AT/RT 쿠키"),
-                            @Header(name = "Location", description = "성공 페이지 URL")
+                            @Header(name = "Set-Cookie", description = "성공 시 AT/RT 쿠키 발급"),
+                            @Header(name = "Location", description = "성공: /account/kakaoauth, 실패: /auth/verify-fail?reason=...")
                     }
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "302", description = "실패 리다이렉트",
-                    headers = @Header(name = "Location", description = "실패 페이지 URL")
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된/만료된 코드"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 인증됨")
@@ -124,11 +121,13 @@ public class AuthController {
             String refreshToken = jwtTokenProvider.generateRefreshToken(userResp.getEmail());
             refreshTokenRepository.saveOrUpdate(userResp.getEmail(), refreshToken);
 
-            var accessCookie = ResponseCookie.from("access_token", accessToken)
+            // /verify 내부
+            var accessCookie = ResponseCookie.from("AT", accessToken)      // ← 통일
                     .httpOnly(true).secure(true).sameSite("None")
                     .domain("dongcheolcoding.life").path("/")
                     .maxAge(Duration.ofMinutes(30)).build();
-            var refreshCookie = ResponseCookie.from("refresh_token", refreshToken)
+
+            var refreshCookie = ResponseCookie.from("RT", refreshToken)
                     .httpOnly(true).secure(true).sameSite("None")
                     .domain("dongcheolcoding.life").path("/")
                     .maxAge(Duration.ofDays(14)).build();
@@ -247,7 +246,7 @@ public class AuthController {
     })
     @SecurityRequirement(name = "accessTokenCookie")
     @DeleteMapping("/admin/users/{userId}")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<String>> adminDeleteAccount(@PathVariable Long userId) {
         authService.deleteAccount(userId);
         return ResponseEntity.ok(ApiResponse.ok("해당 계정이 삭제(탈퇴) 처리되었습니다."));
