@@ -9,10 +9,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -62,12 +64,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         log.info("JwtAuthenticationFilter 실행: {}", request.getRequestURI());
 
         try {
-            // 이미 인증된 경우 스킵 (체인만 진행)
-            if (SecurityContextHolder.getContext().getAuthentication() != null) {
-                filterChain.doFilter(request, response);
-                return;
-            }
-
+            // ✅ 기존 인증 존재 여부와 상관없이 토큰이 유효하면 “항상” 덮어쓰기
             String token = resolveToken(request);
 
             if (token != null && jwtTokenProvider.validateToken(token)) {
@@ -75,25 +72,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 userRepository.findByEmail(email).ifPresentOrElse(user -> {
                     UserPrincipal principal = new UserPrincipal(user);
+
+                    // 권한은 DB의 역할 값을 사용 (Enum -> "ROLE_XXX")
+                    var authorities = user.getRoles().stream()
+                            .map(Enum::name)
+                            .map(SimpleGrantedAuthority::new)
+                            .map(GrantedAuthority.class::cast)
+                            .toList();
+
                     var auth = new UsernamePasswordAuthenticationToken(
-                            principal, null, principal.getAuthorities()
+                            principal, null, authorities
                     );
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                    // ✅ 항상 덮어쓰기
                     SecurityContextHolder.getContext().setAuthentication(auth);
                     log.info("인증 완료: {}", email);
+
                 }, () -> {
                     log.info("유저를 찾을 수 없습니다: {}", email);
                     SecurityContextHolder.clearContext();
                 });
 
             } else {
-                // 토큰이 없거나 유효하지 않으면 인증 없이 통과 (permitAll 경로 등 고려)
-                if (token == null) {
-                    log.info("토큰 미제공 (Authorization 헤더/AT 쿠키 없음)");
-                } else {
-                    log.info("토큰 유효하지 않음");
-                    SecurityContextHolder.clearContext();
-                }
+                if (token == null) log.info("토큰 미제공 (Authorization 헤더/AT 쿠키 없음)");
+                else { log.info("토큰 유효하지 않음"); SecurityContextHolder.clearContext(); }
             }
 
         } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
@@ -104,11 +107,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+
     /**
      * 토큰 우선순위:
      * 1) Authorization: Bearer xxx
      * 2) Cookie: AT
      */
+    // ✅ 동일 이름(AT) 쿠키가 여러 개일 때 “마지막 것”을 사용하도록 수정
     private String resolveToken(HttpServletRequest request) {
         // 1) Authorization 헤더
         String authz = request.getHeader(HttpHeaders.AUTHORIZATION);
@@ -121,11 +126,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (cookies != null) {
             return Arrays.stream(cookies)
                     .filter(c -> "AT".equals(c.getName()))
+                    .reduce((a, b) -> b)            // ← 마지막 쿠키 선택
                     .map(Cookie::getValue)
-                    .findFirst()
                     .orElse(null);
         }
-
         return null;
     }
 }

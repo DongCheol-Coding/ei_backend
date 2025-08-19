@@ -26,6 +26,7 @@ import org.springframework.security.oauth2.client.endpoint.DefaultAuthorizationC
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequestEntityConverter;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizationRequestRepository;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -64,9 +65,12 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                )
+                // 1) 완전 무상태: 인증은 매 요청마다 JWT로
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 2) 인증 정보를 세션에 저장하지 않음
+                .securityContext(sc -> sc.securityContextRepository(
+                        new org.springframework.security.web.context.NullSecurityContextRepository()
+                ))
                 //Saved request 캐시 끄기 (불필요한 세션 저장/리다이렉트 방지)
                 .requestCache(c -> c.disable())
                 .logout(l -> l.disable())
@@ -106,11 +110,16 @@ public class SecurityConfig {
                 )
 
                 .oauth2Login(oauth2 -> oauth2
+                        // ✅ 인가요청 상태만 세션에 잠깐 저장(보안 컨텍스트 세션 저장과 무관)
+                        .authorizationEndpoint(ae -> ae.authorizationRequestRepository(
+                                new HttpSessionOAuth2AuthorizationRequestRepository()
+                        ))
                         .tokenEndpoint(token -> token.accessTokenResponseClient(accessTokenResponseClient()))
                         .userInfoEndpoint(userInfo -> userInfo.userService(oAuth2UserService))
                         .successHandler(oAuth2SuccessHandler)
                         .failureHandler(customOAuth2FailureHandler)
                 )
+
 
                 .addFilterBefore(jwtAuthenticationFilter(userRepository),
                         UsernamePasswordAuthenticationFilter.class);
@@ -183,5 +192,6 @@ public class SecurityConfig {
     org.springframework.web.filter.ForwardedHeaderFilter forwardedHeaderFilter() {
         return new org.springframework.web.filter.ForwardedHeaderFilter();
     }
+
 
 }
