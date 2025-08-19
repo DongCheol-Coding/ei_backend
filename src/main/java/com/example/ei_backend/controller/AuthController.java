@@ -1,6 +1,7 @@
 package com.example.ei_backend.controller;
 
 import com.example.ei_backend.config.ApiResponse;
+import com.example.ei_backend.domain.UserRole;
 import com.example.ei_backend.domain.dto.chat.ChangePasswordRequestDto;
 import com.example.ei_backend.domain.dto.DeleteAccountRequestDto;
 import com.example.ei_backend.domain.dto.TokenResponseDto;
@@ -32,6 +33,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +48,18 @@ public class AuthController {
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
 
+    @Value("${app.front.success-url:https://dongcheolcoding.life/account/kakaoauth}")
+    private String successUrl;
+
+    @Value("${app.front.fail-url:https://dongcheolcoding.life/auth/verify-fail}")
+    private String failUrl;
+
+    @Value("${app.cookie.root-domain:dongcheolcoding.life}")
+    private String rootDomain;
+
+    @Value("${app.cookie.max-days:14}")
+    private long cookieMaxDays;
+
     /** 회원가입 요청 (인증 메일 발송) */
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<String>> signup(@Valid @RequestBody UserDto.Request dto) {
@@ -55,13 +69,53 @@ public class AuthController {
 
     /** 이메일 링크로 최종 가입 */
     @GetMapping("/verify")
-    public ResponseEntity<ApiResponse<UserDto.Response>> verifyByEmailLink(
+    public void verifyByEmailLink(
             @RequestParam String email,
-            @RequestParam String code
-    ) {
-        UserDto.Response response = authService.verifyAndSignup(email, code);
-        return ResponseEntity.ok(ApiResponse.ok(response));
+            @RequestParam String code,
+            HttpServletResponse res
+    ) throws IOException {
+
+        try {
+            // 1) 최종 가입/검증 (서비스에서 access 토큰을 넣어주면 그대로 사용)
+            UserDto.Response userResp = authService.verifyAndSignup(email, code);
+
+            // 2) 액세스 토큰 확보 (서비스가 넣어줬으면 그대로, 없으면 여기서 생성)
+            String accessToken = userResp.getToken();
+            if (accessToken == null || accessToken.isBlank()) {
+                // roles가 Set<UserRole> 이므로 문자열로 변환
+                var roleNames = userResp.getRoles()
+                        .stream().map(UserRole::name).toList();
+
+                accessToken = jwtTokenProvider.generateAccessToken(
+                        userResp.getEmail(), roleNames
+                );
+            }
+
+            // 3) 리프레시 토큰 발급 + 저장/갱신
+            String refreshToken = jwtTokenProvider.generateRefreshToken(userResp.getEmail());
+            refreshTokenRepository.saveOrUpdate(userResp.getEmail(), refreshToken);
+
+            // 4) 쿠키 세팅 (도메인/옵션은 환경에 맞게)
+            var accessCookie = ResponseCookie.from("access_token", accessToken)
+                    .httpOnly(true).secure(true).sameSite("None")
+                    .domain("dongcheolcoding.life").path("/")
+                    .maxAge(Duration.ofMinutes(30)).build();
+            var refreshCookie = ResponseCookie.from("refresh_token", refreshToken)
+                    .httpOnly(true).secure(true).sameSite("None")
+                    .domain("dongcheolcoding.life").path("/")
+                    .maxAge(Duration.ofDays(14)).build();
+
+            res.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+            res.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+
+            // 5) 성공 리다이렉트
+            res.sendRedirect("https://dongcheolcoding.life/account/kakaoauth");
+
+        } catch (CustomException ex) {
+            res.sendRedirect("https://dongcheolcoding.life/auth/verify-fail?reason=" + ex.getErrorCode().name());
+        }
     }
+
 
     /** 로그인 */
     @PostMapping("/login")
