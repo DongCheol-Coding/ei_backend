@@ -23,6 +23,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -184,19 +185,60 @@ public class AuthController {
 
     /** 로그아웃 */
     @Operation(summary = "로그아웃", description = "서버측 컨텍스트/세션 정리 및 AT/RT 쿠키 제거")
-    @io.swagger.v3.oas.annotations.responses.ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "성공(본문 없음)"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요")
-    })
     @SecurityRequirement(name = "accessTokenCookie")
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletRequest req, HttpServletResponse res,
-                                       @AuthenticationPrincipal UserPrincipal principal) {
-        // (기존 로직 그대로)
+    public ResponseEntity<ApiResponse<Void>> logout(
+            HttpServletRequest req,
+            HttpServletResponse res,
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+        // 1) 서버측 정리 (DB에 저장된 RT 삭제 등)
         String email = principal.getUsername();
         authService.logout(email);
-        // clear cookies & session...
-        return ResponseEntity.noContent().build();
+
+        // 2) 프록시/환경 기반 플래그
+        String scheme = Optional.ofNullable(req.getHeader("X-Forwarded-Proto")).orElse(req.getScheme());
+        boolean https = "https".equalsIgnoreCase(scheme);
+
+        String host = Optional.ofNullable(req.getHeader("X-Forwarded-Host")).orElse(req.getServerName());
+        String root = "dongcheolcoding.life";
+        boolean isProd = host.equalsIgnoreCase(root) || host.endsWith("." + root);
+
+        // 3) Set-Cookie 로 AT/RT/JSESSIONID 삭제 (호스트온리 + 루트도메인 모두)
+        HttpHeaders headers = new HttpHeaders();
+
+        // host-only (api.dongcheolcoding.life)
+        headers.add(HttpHeaders.SET_COOKIE, clearCookie("AT", https, null));
+        headers.add(HttpHeaders.SET_COOKIE, clearCookie("RT", https, null));
+        headers.add(HttpHeaders.SET_COOKIE, clearCookie("JSESSIONID", https, null));
+
+        // root domain (.dongcheolcoding.life)
+        if (isProd) {
+            headers.add(HttpHeaders.SET_COOKIE, clearCookie("AT", https, root));
+            headers.add(HttpHeaders.SET_COOKIE, clearCookie("RT", https, root));
+            headers.add(HttpHeaders.SET_COOKIE, clearCookie("JSESSIONID", https, root));
+        }
+
+        // 4) 보안 컨텍스트/세션도 정리 (안전)
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        HttpSession session = req.getSession(false);
+        if (session != null) session.invalidate();
+
+        // 5) 200 OK 로 응답(프록시가 204의 Set-Cookie 를 제거하는 문제 회피)
+        return ResponseEntity.ok().headers(headers).body(ApiResponse.ok(null));
+    }
+
+    /** SameSite/Path/Secure/Domain 을 로그인때와 동일하게 맞춰서 삭제 쿠키 생성 */
+    private String clearCookie(String name, boolean https, @org.springframework.lang.Nullable String domain) {
+        ResponseCookie.ResponseCookieBuilder b = ResponseCookie.from(name, "")
+                .httpOnly(true)
+                .secure(https)       // SameSite=None이면 반드시 Secure
+                .sameSite("None")
+                .path("/")
+                .maxAge(0);          // 또는 .expires(Instant.EPOCH)
+
+        if (domain != null) b.domain(domain);
+        return b.build().toString();
     }
 
     /** 비밀번호 변경 */
