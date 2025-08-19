@@ -44,7 +44,7 @@ public class AdminUserController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPPORT','ROLE_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPPORT')")
     public ResponseEntity<ApiResponse<List<UserDto.Response>>> searchUsers(
             @Parameter(description = "이름(부분 검색 가능)", example = "홍")
             @RequestParam(required = false) String name,
