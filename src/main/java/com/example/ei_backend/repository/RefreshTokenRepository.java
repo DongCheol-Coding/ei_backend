@@ -1,6 +1,7 @@
 package com.example.ei_backend.repository;
 
 import com.example.ei_backend.domain.entity.RefreshToken;
+import jakarta.validation.constraints.Email;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,4 +19,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Stri
                 .token(token)
                 .build());
     }
+
+    @Transactional
+    long deleteByEmail(String email);
 }
