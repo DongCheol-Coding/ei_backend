@@ -8,12 +8,14 @@ import jakarta.validation.constraints.Email;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.lang.Nullable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 @Entity
 @Getter
@@ -50,6 +52,7 @@ public class User {
     @Column(nullable = false)
     private boolean isSocial;
 
+    @Builder.Default
     @Column(nullable = false)
     private boolean isDeleted = false;
 
@@ -71,6 +74,19 @@ public class User {
         this.name = name;
         this.roles = new HashSet<>(Set.of(UserRole.ROLE_MEMBER));
     }
+    // 탈퇴 플래그 (Builder 기본값 유지)
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "deleted_reason", length = 300)
+    private String deletedReason;
+
+    // 액세스 토큰 무효화를 위한 버전
+    @Builder.Default
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion = 0;
+
 
     /**
      * 비즈니스 로직 - 비밀번호 암호화
@@ -164,6 +180,38 @@ public class User {
             profileImage.setUser(this);
         }
         this.profileImage = profileImage;
+    }
+
+
+    /** 소프트 삭제(탈퇴 표시 + 시간/사유 기록) */
+    public void softDelete(@Nullable String reason) {
+        if (this.isDeleted) return;
+        this.isDeleted = true;
+        this.deletedAt = LocalDateTime.now();
+        this.deletedReason = reason;
+    }
+
+    /** 개인정보 익명화(유니크 키 충돌 방지) */
+    public void anonymizeSensitiveFields() {
+        // email을 배달 불가 도메인으로 치환 + 유니크 보장
+        String suffix = (this.id != null ? String.valueOf(this.id)
+                : UUID.randomUUID().toString().substring(0, 8));
+        this.email = "deleted-" + suffix + "@user.invalid"; // @Email 통과용 형식
+
+        // 존재하는 필드만 처리
+        this.name = "탈퇴 회원";
+        this.phone = null;
+
+        // 비밀번호도 더 안전하게 무력화(선택)
+        this.password = "{deleted}";
+
+        // 프로필 이미지 끊기(선택) — orphanRemoval=true면 DB에서도 정리
+        updateProfileImage(null);
+    }
+
+    /** 이후 발급/검증에서 토큰 차단을 위한 버전 증가 */
+    public void bumpTokenVersion() {
+        this.tokenVersion++;
     }
 
 

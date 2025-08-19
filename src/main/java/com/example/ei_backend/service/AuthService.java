@@ -14,6 +14,7 @@ import com.example.ei_backend.domain.entity.RefreshToken;
 import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.exception.CustomException;
 import com.example.ei_backend.exception.ErrorCode;
+import com.example.ei_backend.exception.NotFoundException;
 import com.example.ei_backend.mapper.UserMapper;
 import com.example.ei_backend.repository.EmailVerificationRepository;
 import com.example.ei_backend.repository.RefreshTokenRepository;
@@ -26,6 +27,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.Nullable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -181,9 +183,20 @@ public class AuthService {
     /** 회원 탈퇴 */
     @Transactional
     public void deleteAccount(Long userId) {
-        User user = userRepository.findByIdAndIsDeletedFalse(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        user.deleteAccount();
+        deleteAccount(userId, null);
+    }
+
+    public void deleteAccount(Long userId, @Nullable String reason) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("USER_NOT_FOUND"));
+
+        // 도메인 메서드로 소프트 삭제 + 마스킹(익명화)
+        user.softDelete(reason);          // isDeleted=true, deletedAt=now, deletedReason 저장 등
+        user.anonymizeSensitiveFields();  // 이메일/닉네임 마스킹 및 유니크 충돌 방지
+        user.bumpTokenVersion();          // 이후의 액세스 토큰 검증에서 차단
+
+        // Refresh Token 제거 (이메일 기준)
+        refreshTokenRepository.deleteByEmail(user.getEmail());
     }
 
     /** 로그인 */

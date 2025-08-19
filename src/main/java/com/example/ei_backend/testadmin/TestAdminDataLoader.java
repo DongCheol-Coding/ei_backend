@@ -24,7 +24,7 @@ public class TestAdminDataLoader implements CommandLineRunner {
         createMember("member1@test.com", "회원1");
         createMember("member2@test.com", "회원2");
         createSupport("support1@test.com", "회원1");
-        createSupport("support2@test.com", "회원2");
+        createSupport("info@dongcheolcoding.life", "인포담당자");
     }
 
     private void createAdmin(String email, String name) {
