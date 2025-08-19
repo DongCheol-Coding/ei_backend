@@ -24,7 +24,7 @@ public class AdminUserController {
     private final UserMapper userMapper;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('SUPPORT', 'ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPPORT','ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<List<UserDto.Response>>> searchUsers(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String phoneSuffix,
