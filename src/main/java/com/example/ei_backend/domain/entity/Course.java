@@ -14,8 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 public class Course {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "course_id")
     private Long id;
 
@@ -32,13 +31,25 @@ public class Course {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
+    // 공개/삭제 플래그 (Builder 기본값 보존을 위해 @Builder.Default)
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean published = false;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean deleted = false;
+
     // 도메인 로직
     public void updateCourseInfo(String title, String description) {
         this.title = title;
         this.description = description;
     }
 
-    public void updateImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
-    }
+    public void updateImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
+    public void setPublished(boolean published) { this.published = published; }
+    public void softDelete() { this.deleted = true; }
+
 }
+

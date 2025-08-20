@@ -1,9 +1,13 @@
 package com.example.ei_backend.controller;
 
 import com.example.ei_backend.config.ApiResponse;
+import com.example.ei_backend.domain.dto.KakaoPayApproveRequestDto;
 import com.example.ei_backend.domain.dto.KakaoPayReadyResponseDto;
+import com.example.ei_backend.domain.dto.PaymentDto;
 import com.example.ei_backend.domain.entity.Course;
 import com.example.ei_backend.exception.ErrorCode;
+import com.example.ei_backend.mapper.PaymentMapper;
+import com.example.ei_backend.repository.PaymentRepository;
 import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.CourseService;
 import com.example.ei_backend.service.KakaoPayService;
@@ -14,11 +18,15 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Tag(name = "Payment", description = "카카오페이 결제 준비/승인 및 취소/실패 콜백")
 @RestController
@@ -30,6 +38,8 @@ public class PaymentController {
 
     private final KakaoPayService kakaoPayService;
     private final CourseService courseService;
+    private final PaymentRepository paymentRepository;
+    private final PaymentMapper paymentMapper;
 
     /** 1) 결제 준비 */
     @Operation(
@@ -88,16 +98,16 @@ public class PaymentController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "402", description = "결제 승인 불가"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
-    @GetMapping("/approve")
+
+    @PostMapping("/approve")
     public ResponseEntity<ApiResponse<String>> approvePayment(
-            @Parameter(description = "카카오가 전달하는 승인 토큰", example = "T1234567890123456789")
-            @RequestParam("pg_token") String pgToken,
-            @Parameter(hidden = true)
-            @AuthenticationPrincipal UserPrincipal userPrincipal
+            @RequestBody @Valid KakaoPayApproveRequestDto body,
+            @AuthenticationPrincipal UserPrincipal me
     ) {
-        String resultMessage = kakaoPayService.approve(pgToken, userPrincipal.getUsername());
-        return ResponseEntity.ok(ApiResponse.ok(resultMessage));
+        String result = kakaoPayService.approve(body.getPgToken(), me.getUsername());
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
 
     /** 3) 결제 취소 */
     @Operation(
@@ -163,5 +173,33 @@ public class PaymentController {
     public ResponseEntity<ApiResponse<Void>> failPayment() {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.fail(ErrorCode.SERVER_ERROR, "결제에 실패하였습니다."));
+    }
+
+    /** 5) 내 결제 내역 조회 */
+    @Operation(
+            summary = "내 결제 내역 조회",
+            description = "로그인한 사용자의 결제 내역을 최신순으로 반환합니다."
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = PaymentDto.class)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요")
+    })
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<PaymentDto>>> getMyPayments(
+            @AuthenticationPrincipal UserPrincipal me
+    ) {
+        var payments = paymentRepository.findByUserIdOrderByIdDesc(me.getUserId());
+        var dtoList = payments.stream()
+                .map(paymentMapper::toDto)
+                .toList();
+
+        return ResponseEntity.ok(ApiResponse.ok(dtoList));
     }
 }

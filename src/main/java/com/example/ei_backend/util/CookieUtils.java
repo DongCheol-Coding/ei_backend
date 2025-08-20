@@ -37,5 +37,21 @@ public class CookieUtils {
         }
         return b.build();
     }
+
+    public static ResponseCookie makeCookieSeconds(
+            String name, String token, String domainOrNull, String path, long maxAgeSeconds, boolean isHttps) {
+
+        var b = ResponseCookie.from(name, token)
+                .httpOnly(true)
+                .secure(isHttps)
+                .sameSite(isHttps ? "None" : "Lax")
+                .path(path)
+                .maxAge(maxAgeSeconds);
+
+        if (domainOrNull != null && !domainOrNull.isBlank()) {
+            b.domain(domainOrNull);
+        }
+        return b.build();
+    }
 }
 

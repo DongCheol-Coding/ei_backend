@@ -13,6 +13,7 @@ import com.example.ei_backend.repository.UserRepository;
 import com.example.ei_backend.security.JwtTokenProvider;
 import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.AuthService;
+import com.example.ei_backend.util.CookieUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -31,13 +32,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Optional;
 
 @Tag(name = "Auth", description = "회원가입/이메일인증/로그인/토큰/프로필 이미지/내 정보")
@@ -57,16 +59,24 @@ public class AuthController {
     @Value("${app.front.fail-url:https://dongcheolcoding.life/auth/verify-fail}")
     private String failUrl;
 
-    @Value("${app.cookie.root-domain:dongcheolcoding.life}")
+    /** 배포에선 환경변수(COOKIE_DOMAIN)로 주입 추천, 로컬은 빈 값 */
+    @Value("${app.cookie.root-domain:}")
     private String rootDomain;
 
+    /** RT 만료(일). AT는 아래에서 1800초(30분)로 고정 */
     @Value("${app.cookie.max-days:14}")
     private long cookieMaxDays;
 
-    /** 회원가입 요청 (인증 메일 발송) */
+    private static final String COOKIE_PATH = "/";
+
+    /* ================= 회원가입 요청(메일 발송) ================= */
     @Operation(
             summary = "회원가입 요청(인증 메일 발송)",
-            description = "사용자 정보를 받아 인증 메일을 발송합니다."
+            description = "사용자 정보를 받아 인증 메일을 발송합니다.",
+            requestBody = @RequestBody(
+                    required = true,
+                    content = @Content(schema = @Schema(implementation = UserDto.Request.class))
+            )
     )
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -77,18 +87,13 @@ public class AuthController {
     })
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<String>> signup(
-            @RequestBody(
-                    description = "회원가입 요청 본문",
-                    required = true,
-                    content = @Content(schema = @Schema(implementation = UserDto.Request.class))
-            )
             @Valid @org.springframework.web.bind.annotation.RequestBody UserDto.Request dto
     ) {
         authService.requestSignup(dto);
         return ResponseEntity.ok(ApiResponse.ok("인증 메일이 전송되었습니다."));
     }
 
-    /** 이메일 링크로 최종 가입 */
+    /* ================= 이메일 링크 최종 가입 + 쿠키 발급 후 리다이렉트 ================= */
     @Operation(
             summary = "이메일 인증 링크 처리(최종 가입 및 쿠키 발급)",
             description = "메일 링크로 최종 가입을 처리하고 AT/RT 쿠키를 발급한 뒤 성공 페이지로 리다이렉트합니다."
@@ -109,11 +114,12 @@ public class AuthController {
     public void verifyByEmailLink(
             @Parameter(description = "이메일", example = "user@test.com") @RequestParam String email,
             @Parameter(description = "인증 코드", example = "XPN59F") @RequestParam String code,
+            HttpServletRequest req,
             HttpServletResponse res
     ) throws IOException {
-        // (기존 로직 그대로)
         try {
             UserDto.Response userResp = authService.verifyAndSignup(email, code);
+
             String accessToken = userResp.getToken();
             if (accessToken == null || accessToken.isBlank()) {
                 var roleNames = userResp.getRoles().stream().map(UserRole::name).toList();
@@ -122,28 +128,28 @@ public class AuthController {
             String refreshToken = jwtTokenProvider.generateRefreshToken(userResp.getEmail());
             refreshTokenRepository.saveOrUpdate(userResp.getEmail(), refreshToken);
 
-            // /verify 내부
-            var accessCookie = ResponseCookie.from("AT", accessToken)      // ← 통일
-                    .httpOnly(true).secure(true).sameSite("None")
-                    .domain("dongcheolcoding.life").path("/")
-                    .maxAge(Duration.ofMinutes(30)).build();
+            boolean https = isHttps(req);
+            String cookieDomain = resolveCookieDomain(req);
 
-            var refreshCookie = ResponseCookie.from("RT", refreshToken)
-                    .httpOnly(true).secure(true).sameSite("None")
-                    .domain("dongcheolcoding.life").path("/")
-                    .maxAge(Duration.ofDays(14)).build();
-            res.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
-            res.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
-            res.sendRedirect("https://dongcheolcoding.life/account/kakaoauth");
+            ResponseCookie atCookie = CookieUtils.makeCookieSeconds("AT", accessToken, cookieDomain, COOKIE_PATH, 1800, https);
+            ResponseCookie rtCookie = CookieUtils.makeRefreshCookie("RT", refreshToken, cookieDomain, COOKIE_PATH, cookieMaxDays, https);
+
+            res.addHeader(HttpHeaders.SET_COOKIE, atCookie.toString());
+            res.addHeader(HttpHeaders.SET_COOKIE, rtCookie.toString());
+            res.sendRedirect(successUrl);
         } catch (CustomException ex) {
-            res.sendRedirect("https://dongcheolcoding.life/auth/verify-fail?reason=" + ex.getErrorCode().name());
+            res.sendRedirect(failUrl + "?reason=" + ex.getErrorCode().name());
         }
     }
 
-    /** 로그인 */
+    /* ================= 로그인 (쿠키 발급) ================= */
     @Operation(
             summary = "로그인(쿠키 발급)",
-            description = "이메일/비밀번호로 로그인하고 AT/RT를 HttpOnly 쿠키로 발급합니다."
+            description = "이메일/비밀번호로 로그인하고 AT/RT를 HttpOnly 쿠키로 발급합니다.",
+            requestBody = @RequestBody(
+                    required = true,
+                    content = @Content(schema = @Schema(implementation = UserDto.LoginRequest.class))
+            )
     )
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공(쿠키 발급)"),
@@ -151,39 +157,24 @@ public class AuthController {
     })
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<Void>> login(
-            @RequestBody(
-                    description = "로그인 요청 본문",
-                    required = true,
-                    content = @Content(schema = @Schema(implementation = UserDto.LoginRequest.class))
-            )
-            @org.springframework.web.bind.annotation.RequestBody UserDto.LoginRequest req,
+            @org.springframework.web.bind.annotation.RequestBody UserDto.LoginRequest reqBody,
             HttpServletRequest httpReq,
             HttpServletResponse httpRes
     ) {
-        // (기존 로직 그대로)
-        LoginResult result = authService.login(req.getEmail(), req.getPassword());
-        String accessToken  = result.accessToken();
-        String refreshToken = result.refreshToken();
-        String scheme = Optional.ofNullable(httpReq.getHeader("X-Forwarded-Proto")).orElse(httpReq.getScheme());
-        String host   = Optional.ofNullable(httpReq.getHeader("X-Forwarded-Host")).orElse(httpReq.getServerName());
-        boolean https = "https".equalsIgnoreCase(scheme);
-        String root = "dongcheolcoding.life";
-        boolean isProdDomain = host.equalsIgnoreCase(root) || host.endsWith("." + root);
-        String cookieDomain  = isProdDomain ? root : null;
+        LoginResult result = authService.login(reqBody.getEmail(), reqBody.getPassword());
 
-        ResponseCookie rtCookie = ResponseCookie.from("RT", refreshToken)
-                .httpOnly(true).secure(https).sameSite("None").path("/").domain(cookieDomain)
-                .maxAge(14L * 24 * 60 * 60).build();
-        ResponseCookie atCookie = ResponseCookie.from("AT", accessToken)
-                .httpOnly(true).secure(https).sameSite("None").path("/").domain(cookieDomain)
-                .maxAge(30 * 60).build();
+        boolean https = isHttps(httpReq);
+        String cookieDomain = resolveCookieDomain(httpReq);
+
+        ResponseCookie rtCookie = CookieUtils.makeRefreshCookie("RT", result.refreshToken(), cookieDomain, COOKIE_PATH, cookieMaxDays, https);
+        ResponseCookie atCookie = CookieUtils.makeCookieSeconds("AT", result.accessToken(), cookieDomain, COOKIE_PATH, 1800, https);
+
         httpRes.addHeader(HttpHeaders.SET_COOKIE, rtCookie.toString());
         httpRes.addHeader(HttpHeaders.SET_COOKIE, atCookie.toString());
-
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
-    /** 로그아웃 */
+    /* ================= 로그아웃 (쿠키 삭제 + 서버측 정리) ================= */
     @Operation(summary = "로그아웃", description = "서버측 컨텍스트/세션 정리 및 AT/RT 쿠키 제거")
     @SecurityRequirement(name = "accessTokenCookie")
     @PostMapping("/logout")
@@ -192,57 +183,32 @@ public class AuthController {
             HttpServletResponse res,
             @AuthenticationPrincipal UserPrincipal principal
     ) {
-        // 1) 서버측 정리 (DB에 저장된 RT 삭제 등)
         String email = principal.getUsername();
         authService.logout(email);
 
-        // 2) 프록시/환경 기반 플래그
-        String scheme = Optional.ofNullable(req.getHeader("X-Forwarded-Proto")).orElse(req.getScheme());
-        boolean https = "https".equalsIgnoreCase(scheme);
+        boolean https = isHttps(req);
+        String cookieDomain = resolveCookieDomain(req);
 
-        String host = Optional.ofNullable(req.getHeader("X-Forwarded-Host")).orElse(req.getServerName());
-        String root = "dongcheolcoding.life";
-        boolean isProd = host.equalsIgnoreCase(root) || host.endsWith("." + root);
-
-        // 3) Set-Cookie 로 AT/RT/JSESSIONID 삭제 (호스트온리 + 루트도메인 모두)
         HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.SET_COOKIE, CookieUtils.deleteCookie("AT", cookieDomain, COOKIE_PATH, https).toString());
+        headers.add(HttpHeaders.SET_COOKIE, CookieUtils.deleteCookie("RT", cookieDomain, COOKIE_PATH, https).toString());
+        headers.add(HttpHeaders.SET_COOKIE, CookieUtils.deleteCookie("JSESSIONID", cookieDomain, COOKIE_PATH, https).toString());
 
-        // host-only (api.dongcheolcoding.life)
-        headers.add(HttpHeaders.SET_COOKIE, clearCookie("AT", https, null));
-        headers.add(HttpHeaders.SET_COOKIE, clearCookie("RT", https, null));
-        headers.add(HttpHeaders.SET_COOKIE, clearCookie("JSESSIONID", https, null));
+        SecurityContextHolder.clearContext();
+        Optional.ofNullable(req.getSession(false)).ifPresent(HttpSession::invalidate);
 
-        // root domain (.dongcheolcoding.life)
-        if (isProd) {
-            headers.add(HttpHeaders.SET_COOKIE, clearCookie("AT", https, root));
-            headers.add(HttpHeaders.SET_COOKIE, clearCookie("RT", https, root));
-            headers.add(HttpHeaders.SET_COOKIE, clearCookie("JSESSIONID", https, root));
-        }
-
-        // 4) 보안 컨텍스트/세션도 정리 (안전)
-        org.springframework.security.core.context.SecurityContextHolder.clearContext();
-        HttpSession session = req.getSession(false);
-        if (session != null) session.invalidate();
-
-        // 5) 200 OK 로 응답(프록시가 204의 Set-Cookie 를 제거하는 문제 회피)
         return ResponseEntity.ok().headers(headers).body(ApiResponse.ok(null));
     }
 
-    /** SameSite/Path/Secure/Domain 을 로그인때와 동일하게 맞춰서 삭제 쿠키 생성 */
-    private String clearCookie(String name, boolean https, @org.springframework.lang.Nullable String domain) {
-        ResponseCookie.ResponseCookieBuilder b = ResponseCookie.from(name, "")
-                .httpOnly(true)
-                .secure(https)       // SameSite=None이면 반드시 Secure
-                .sameSite("None")
-                .path("/")
-                .maxAge(0);          // 또는 .expires(Instant.EPOCH)
-
-        if (domain != null) b.domain(domain);
-        return b.build().toString();
-    }
-
-    /** 비밀번호 변경 */
-    @Operation(summary = "비밀번호 변경", description = "로그인 사용자의 비밀번호를 변경합니다.")
+    /* ================= 비밀번호 변경 ================= */
+    @Operation(
+            summary = "비밀번호 변경",
+            description = "로그인 사용자의 비밀번호를 변경합니다.",
+            requestBody = @RequestBody(
+                    required = true,
+                    content = @Content(schema = @Schema(implementation = ChangePasswordRequestDto.class))
+            )
+    )
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요")
@@ -250,11 +216,6 @@ public class AuthController {
     @SecurityRequirement(name = "accessTokenCookie")
     @PatchMapping("/password")
     public ResponseEntity<ApiResponse<Void>> changePassword(
-            @RequestBody(
-                    description = "새 비밀번호",
-                    required = true,
-                    content = @Content(schema = @Schema(implementation = ChangePasswordRequestDto.class))
-            )
             @org.springframework.web.bind.annotation.RequestBody ChangePasswordRequestDto request,
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
@@ -263,7 +224,7 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
-    /** 회원 탈퇴(본인) */
+    /* ================= 회원 탈퇴(본인) ================= */
     @Operation(summary = "회원 탈퇴(본인)", description = "현재 로그인한 사용자를 탈퇴 처리합니다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -273,13 +234,25 @@ public class AuthController {
     @DeleteMapping("/account")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<String>> deleteMyAccount(
+            HttpServletRequest req,
             @AuthenticationPrincipal UserPrincipal principal
     ) {
         authService.deleteAccount(principal.getUserId());
-        return ResponseEntity.ok(ApiResponse.ok("계정이 삭제(탈퇴) 처리되었습니다."));
+        Optional.ofNullable(req.getSession(false)).ifPresent(HttpSession::invalidate);
+        SecurityContextHolder.clearContext();
+
+        boolean https = isHttps(req);
+        String cookieDomain = resolveCookieDomain(req);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.SET_COOKIE, CookieUtils.deleteCookie("AT", cookieDomain, COOKIE_PATH, https).toString());
+        headers.add(HttpHeaders.SET_COOKIE, CookieUtils.deleteCookie("RT", cookieDomain, COOKIE_PATH, https).toString());
+        headers.add(HttpHeaders.SET_COOKIE, CookieUtils.deleteCookie("JSESSIONID", cookieDomain, COOKIE_PATH, https).toString());
+
+        return ResponseEntity.ok().headers(headers).body(ApiResponse.ok("계정이 삭제(탈퇴) 처리되었습니다."));
     }
 
-    /** 관리자 강제 탈퇴 */
+    /* ================= 관리자 강제 탈퇴 ================= */
     @Operation(summary = "관리자 강제 탈퇴", description = "관리자가 지정한 사용자를 강제 탈퇴 처리합니다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -294,7 +267,7 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok("해당 계정이 삭제(탈퇴) 처리되었습니다."));
     }
 
-    /** 액세스 토큰 재발급 */
+    /* ================= AT 재발급 ================= */
     @Operation(summary = "액세스 토큰 재발급", description = "RT 쿠키를 검증하고 새로운 AT를 발급합니다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공(AT 쿠키 재설정)"),
@@ -308,15 +281,22 @@ public class AuthController {
             HttpServletRequest req,
             HttpServletResponse res
     ) {
-        // (기존 로직 그대로)
         if (refreshToken == null || !jwtTokenProvider.validateToken(refreshToken)) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
-        // ...
+        // 예시) 새 AT 발급 시
+        // String email = jwtTokenProvider.getUsername(refreshToken);
+        // var roles = jwtTokenProvider.getRoles(refreshToken);
+        // String newAt = jwtTokenProvider.generateAccessToken(email, roles);
+        // boolean https = isHttps(req);
+        // String cookieDomain = resolveCookieDomain(req);
+        // res.addHeader(HttpHeaders.SET_COOKIE,
+        //         CookieUtils.makeCookieSeconds("AT", newAt, cookieDomain, COOKIE_PATH, 1800, https).toString());
+
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
-    /** 프로필 이미지 업로드/교체 */
+    /* ================= 프로필 이미지 업로드/삭제 & 내 정보 조회 ================= */
     @Operation(summary = "프로필 이미지 업로드/교체",
             description = "로그인 사용자의 프로필 이미지를 업로드/교체합니다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
@@ -343,7 +323,6 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok(imageUrl));
     }
 
-    /** 프로필 이미지 삭제 */
     @Operation(summary = "프로필 이미지 삭제", description = "로그인 사용자의 프로필 이미지를 삭제합니다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -358,7 +337,6 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok("프로필 이미지가 삭제되었습니다."));
     }
 
-    /** 현재 로그인 사용자 정보 조회 */
     @Operation(summary = "내 정보 조회", description = "현재 로그인한 사용자의 정보를 반환합니다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -376,5 +354,20 @@ public class AuthController {
         User user = userRepository.findByEmail(principal.getUsername())
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         return ResponseEntity.ok(ApiResponse.ok(UserDto.Response.from(user)));
+    }
+
+    /* ================= 내부 헬퍼 ================= */
+
+    private boolean isHttps(HttpServletRequest req) {
+        String xfProto = req.getHeader("X-Forwarded-Proto");
+        return "https".equalsIgnoreCase(xfProto) || req.isSecure();
+    }
+
+    /** 현재 요청 Host가 루트 도메인(또는 그 하위)이면 rootDomain 반환, 아니면 null(=host-only 쿠키) */
+    private @Nullable String resolveCookieDomain(HttpServletRequest req) {
+        if (rootDomain == null || rootDomain.isBlank()) return null;
+        String host = Optional.ofNullable(req.getHeader("X-Forwarded-Host")).orElse(req.getServerName());
+        if (host == null) return null;
+        return (host.equalsIgnoreCase(rootDomain) || host.endsWith("." + rootDomain)) ? rootDomain : null;
     }
 }
