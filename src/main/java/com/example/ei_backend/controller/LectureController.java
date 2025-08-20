@@ -58,10 +58,11 @@ public class LectureController {
     public ApiResponse<LectureDetailDto> createWithVideo(
             @Parameter(description = "코스 ID", example = "101") @PathVariable Long courseId,
 
-            // 🔽 여기만 변경: LectureCreateRequest -> String
+            //  여기만 변경: LectureCreateRequest -> String
             @Parameter(
                     name = "data",
-                    description = "강의 생성 JSON (LectureCreateRequest)",
+                    description = "강의 생성 JSON (LectureCreateRequest) " +
+                            "{\"title\":\"강의 제목\",\"description\":\"내용\",\"orderIndex\":0(강의순서),\"isPublic\":true}",
                     required = true
             )
             @RequestPart("data") String dataJson,
