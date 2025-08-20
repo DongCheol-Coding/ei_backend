@@ -71,11 +71,13 @@
       client:
         host: ${CLIENT_HOST}
       cookie:
-        root-domain: "dongcheolcoding.life"
+        root-domain: ${COOKIE_DOMAIN:}      # 기본: 빈값(도메인 미지정 = host-only)
+        secure: ${COOKIE_SECURE:false}      # 기본: false (HTTP 로컬)
+        same-site: ${COOKIE_SAMESITE:Lax}   # 기본: Lax (같은 오리진)
         max-days: 14
       front:
-        success-url: "https://dongcheolcoding.life/account/kakaoauth"
-      cdn-base-url: https://cdn.dongcheolcoding.life
+        success-url: ${FRONT_SUCCESS_URL:https://dongcheolcoding.life/account/kakaoauth}
+      cdn-base-url: ${CDN_BASE_URL:https://cdn.dongcheolcoding.life}
 
     cloud:
       aws:

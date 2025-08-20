@@ -91,6 +91,7 @@ public class SecurityConfig {
                                 "/ws-chat", "/ws-chat/**", "/ws-chat-sockjs", "/ws-chat-sockjs/**"
 
                         ).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/course", "/api/course/").permitAll()
                         // 프로필 이미지는 인증 필수
                         .requestMatchers(HttpMethod.PATCH,  "/api/auth/profile/image").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/auth/profile/image").authenticated()

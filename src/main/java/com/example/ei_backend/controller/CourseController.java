@@ -2,6 +2,7 @@ package com.example.ei_backend.controller;
 
 import com.example.ei_backend.config.ApiResponse;
 import com.example.ei_backend.domain.dto.CourseDto;
+import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,12 +15,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.util.List;
 
 @Tag(name = "Course", description = "강의(코스) 관리 API")
 @RestController
@@ -49,15 +48,75 @@ public class CourseController {
             required = true,
             content = @Content(
                     mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
-                    schema = @Schema(implementation = CourseDto.Request.class)
+                    schema = @Schema(implementation = CourseDto.CreateRequest.class)
             )
     )
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')") // 내부에서 ROLE_ 접두사 자동 부여
     public ResponseEntity<ApiResponse<CourseDto.Response>> createProduct(
-            @ModelAttribute CourseDto.Request request
+            @ModelAttribute CourseDto.CreateRequest request
     ) throws IOException {
-        CourseDto.Response response = courseService.createProduct(request);
+        var response = courseService.createProduct(request);
         return ResponseEntity.status(201).body(ApiResponse.ok(response));
+    }
+
+    @GetMapping
+    @PreAuthorize("permitAll()")
+    @Operation(summary = "코스 목록 조회(공개)", description = "발행된 코스를 전체 반환")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
+    })
+    public ResponseEntity<ApiResponse<List<CourseDto.Summary>>> listCourses() {
+        var items = courseService.listAllPublicCourses();
+        return ResponseEntity.ok(ApiResponse.ok(items));
+    }
+
+    // 전체 공개 코스 목록 (검색/페이징)
+//    @GetMapping
+//    @PreAuthorize("permitAll()") // 공개로 열려면 추가 (혹은 시큐리티 설정에서 permitAll 처리)
+//    @Operation(summary = "코스 목록 조회(공개)", description = "검색/페이징이 가능한 공개 코스 목록")
+//    @ApiResponses({
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
+//    })
+//    public ResponseEntity<ApiResponse<CourseDto.Page<CourseDto.Summary>>> listCourses(
+//            @RequestParam(defaultValue = "0") int page,
+//            @RequestParam(defaultValue = "12") int size,
+//            @RequestParam(required = false) String q,
+//            @RequestParam(required = false, defaultValue = "createdAt,desc") String sort
+//    ) {
+//        var items = courseService.findPublicCourses(page, size, q, sort);
+//        return ResponseEntity.ok(ApiResponse.ok(items));
+//    }
+    // 공개/비공개 토글 (ADMIN)
+    @PatchMapping("/{courseId}/publish")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "코스 공개 상태 변경(ADMIN)", description = "published=true/false 토글")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않음")
+    })
+    public ResponseEntity<ApiResponse<CourseDto.Summary>> setPublished(
+            @PathVariable Long courseId,
+            @org.springframework.web.bind.annotation.RequestBody CourseDto.PublishRequest req
+    ) {
+        var updated = courseService.setPublished(courseId, req.isPublished());
+        return ResponseEntity.ok(ApiResponse.ok(updated));
+    }
+
+    // 내 코스 목록 (수강 중)
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "내 코스 목록", description = "수강 중인 코스와 진행률")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요")
+    })
+    public ResponseEntity<ApiResponse<CourseDto.Page<CourseDto.MyCourseItem>>> myCourses(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.example.ei_backend.security.UserPrincipal principal,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size
+    ) {
+        var items = courseService.findMyCourses(principal.getUserId(), page, size);
+        return ResponseEntity.ok(ApiResponse.ok(items));
     }
 }
