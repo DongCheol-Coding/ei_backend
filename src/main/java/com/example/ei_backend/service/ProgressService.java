@@ -23,41 +23,38 @@ public class ProgressService {
     private final LectureRepository lectureRepository;
     private final LectureProgressRepository progressRepository;
     private final UserRepository userRepository;
-    private final UserCourseRepository enrollRepository;
     private final SimpMessagingTemplate broker;
 
     @Value("${progress.complete-threshold:0.9}")
     private double threshold;
 
-
     /**
      * ADMIN이거나, 해당 강의에 접근 권한이 있는 사용자만 업데이트 가능
      */
-     @PreAuthorize("hasRole('ADMIN') or @enrollPerm.canAceessLecture(#userId, #lectureId)")
+    @PreAuthorize("hasRole('ADMIN') or @enrollPerm.canAccessLecture(#p0, #p1)")
     @Transactional
     public CourseProgressWithLectureDto update(Long userId, Long lectureId, int watchedSec) {
         Lecture l = lectureRepository.findById(lectureId)
                 .orElseThrow(() -> new NotFoundException("lecture"));
         Long courseId = l.getCourse().getId();
 
-         var user = userRepository.getReferenceById(userId);
-         var lp = progressRepository.findByUserIdAndLectureId(userId, lectureId)
-                 .orElseGet(() -> progressRepository.save(LectureProgress.start(user, l)));
-         lp.updateWatched(watchedSec, l.getDurationSec(), threshold);
+        var user = userRepository.getReferenceById(userId);
+        var lp = progressRepository.findByUserIdAndLectureId(userId, lectureId)
+                .orElseGet(() -> progressRepository.save(LectureProgress.start(user, l)));
+        lp.updateWatched(watchedSec, l.getDurationSec(), threshold);
 
-         long total = lectureRepository.countByCourseId(courseId);
-         long completed = progressRepository.countCompletedLectures(userId, courseId);
-         double courseRatio = (total == 0) ? 0.0 : (double) completed / total;
-         double lecturRatio = (l.getDurationSec() == 0) ? 0.0
-                 : Math.min(1.0, (double) lp.getWatchedSec() / l.getDurationSec());
+        long total = lectureRepository.countByCourseId(courseId);
+        long completed = progressRepository.countCompletedLectures(userId, courseId);
+        double courseRatio = (total == 0) ? 0.0 : (double) completed / total;
+        double lectureRatio = (l.getDurationSec() == 0) ? 0.0
+                : Math.min(1.0, (double) lp.getWatchedSec() / l.getDurationSec());
 
-         var dto = new CourseProgressWithLectureDto(
-           courseId, courseRatio, (int) completed, (int) total,
-           lectureId, lecturRatio, lp.isCompleted()
-         );
-         broker.convertAndSend("/topic/progress/course" + courseId, dto);
-         return dto;
+        var dto = new CourseProgressWithLectureDto(
+                courseId, courseRatio, (int) completed, (int) total,
+                lectureId, lectureRatio, lp.isCompleted()
+        );
+        broker.convertAndSend("/topic/progress/course/" + courseId, dto);
+        return dto;
     }
-
 
 }

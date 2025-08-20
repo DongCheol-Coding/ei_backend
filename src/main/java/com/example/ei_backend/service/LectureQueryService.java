@@ -38,7 +38,7 @@ public class LectureQueryService {
         }).toList();
     }
 
-    @PreAuthorize("hasRole('ADMIN') or @enrollPrem.canAccessLecture(#userId, #lecturedId)")
+    @PreAuthorize("hasRole('ADMIN') or @enrollPerm.canAccessLecture(#p0, #p1)")
     public LectureDetailDto getForUser(Long userId, Long lectureId) {
         var l = lectureRepository.findById(lectureId)
                 .orElseThrow(() -> new NotFoundException("lecture"));
