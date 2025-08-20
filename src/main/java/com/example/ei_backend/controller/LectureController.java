@@ -39,38 +39,9 @@ public class LectureController {
     private final LectureCreateWithVideoService createWithVideoService;
     private final ObjectMapper objectMapper;
 
-    /** ADMIN: JSON만 (영상 없이) */
-    @Operation(summary = "강의 생성(영상 없이, JSON)", description = "관리자가 JSON 본문으로 강의를 생성합니다.")
-    @io.swagger.v3.oas.annotations.responses.ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200", description = "생성 성공",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = LectureDto.class))
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "요청 검증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음(ADMIN)")
-    })
-    @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/courses/{courseId}/lectures")
-    public ApiResponse<LectureDto> create(
-            @Parameter(description = "코스 ID", example = "101") @PathVariable Long courseId,
-            @RequestBody(
-                    required = true,
-                    description = "강의 생성 요청",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = LectureCreateRequest.class))
-            )
-            @org.springframework.web.bind.annotation.RequestBody LectureCreateRequest lectureCreateRequest
-    ) {
-        return ApiResponse.ok(lectureCommandService.create(courseId, lectureCreateRequest));
-    }
-
     /** ADMIN: 멀티파트(강의 + 영상 한번에) */
-    @Operation(
-            summary = "강의 생성(영상 포함, multipart)",
-            description = "관리자가 멀티파트로 강의 메타데이터와 영상을 함께 업로드하여 생성합니다."
-    )
+    @Operation(summary = "강의 생성(영상 포함, multipart)",
+            description = "관리자가 멀티파트로 강의 메타데이터와 영상을 함께 업로드하여 생성합니다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200", description = "생성 성공",
@@ -82,18 +53,19 @@ public class LectureController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음(ADMIN)")
     })
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping(value = "/courses/{courseId}/lectures:with-video",
+    @PostMapping(value = "/courses/{courseId}/lectures/with-video",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<LectureDetailDto> createWithVideo(
             @Parameter(description = "코스 ID", example = "101") @PathVariable Long courseId,
+
+            // 🔽 여기만 변경: LectureCreateRequest -> String
             @Parameter(
                     name = "data",
                     description = "강의 생성 JSON (LectureCreateRequest)",
-                    required = true,
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = LectureCreateRequest.class))
+                    required = true
             )
-            @RequestPart("data") LectureCreateRequest lectureCreateRequest,
+            @RequestPart("data") String dataJson,
+
             @Parameter(
                     name = "video",
                     description = "업로드할 강의 영상 파일(선택)",
@@ -101,9 +73,16 @@ public class LectureController {
                             schema = @Schema(type = "string", format = "binary"))
             )
             @RequestPart(value = "video", required = false) MultipartFile video
-    ) {
-        return ApiResponse.ok(createWithVideoService.create(courseId, lectureCreateRequest, video));
+    ) throws Exception {
+        // 문자열을 DTO로 역직렬화
+        LectureCreateRequest lectureCreateRequest =
+                objectMapper.readValue(dataJson, LectureCreateRequest.class);
+
+        return ApiResponse.ok(
+                createWithVideoService.create(courseId, lectureCreateRequest, video)
+        );
     }
+
 
     @Operation(
             summary = "강의 수정(영상 포함, multipart)",
