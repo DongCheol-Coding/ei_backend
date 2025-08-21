@@ -93,6 +93,7 @@ public class SecurityConfig {
 
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/course", "/api/course/").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/payment/cancel", "/api/payment/fail").permitAll()
                         // 프로필 이미지는 인증 필수
                         .requestMatchers(HttpMethod.PATCH,  "/api/auth/profile/image").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/auth/profile/image").authenticated()
