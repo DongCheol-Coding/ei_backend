@@ -2,8 +2,10 @@ package com.example.ei_backend.service;
 
 import com.example.ei_backend.aws.S3Uploader;
 import com.example.ei_backend.domain.dto.CourseDto;
+import com.example.ei_backend.domain.dto.CoursePurchasePreviewDto;
 import com.example.ei_backend.domain.entity.Course;
 import com.example.ei_backend.domain.entity.UserCourse;
+import com.example.ei_backend.exception.NotFoundException;
 import com.example.ei_backend.repository.CourseRepository;
 import com.example.ei_backend.repository.LectureRepository;
 import com.example.ei_backend.repository.UserCourseRepository;
@@ -130,6 +132,25 @@ public class CourseService {
                 .build();
     }
 
+    /** 결제 직전 노출용(공개 코스만) */
+    public CoursePurchasePreviewDto getPurchasePreview(Long courseId) {
+        Course c = courseRepository.findByIdAndPublishedTrueAndDeletedFalse(courseId)
+                .orElseThrow(() -> new NotFoundException("course"));
+
+        int lectureCount = (int) lectureRepository.countByCourseId(courseId);
+        int totalDuration = lectureRepository.sumDurationByCourseId(courseId);
+
+        return CoursePurchasePreviewDto.builder()
+                .id(c.getId())
+                .title(c.getTitle())
+                .description(c.getDescription())
+                .price(c.getPrice())
+                .imageUrl(c.getImageUrl())
+                .lectureCount(lectureCount)
+                .totalDurationSec(totalDuration)
+                .build();
+    }
+
     // ----- helpers -----
     private CourseDto.Summary toSummary(Course c) {
         return CourseDto.Summary.builder()
@@ -137,7 +158,7 @@ public class CourseService {
                 .title(c.getTitle())
                 .imageUrl(c.getImageUrl())
                 .price(c.getPrice())
-                .published(false) // TODO: 필드 추가 전 임시
+                .published(c.isPublished())
                 .build();
     }
 

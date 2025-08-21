@@ -65,7 +65,7 @@ public class PaymentController {
     })
     @PostMapping("/ready")
     public ResponseEntity<ApiResponse<String>> createPayment(
-            @Parameter(description = "결제할 코스 ID", example = "101")
+            @Parameter(description = "결제할 코스 ID", example = "1")
             @RequestParam Long courseId,
             @Parameter(hidden = true)
             @AuthenticationPrincipal UserPrincipal userPrincipal

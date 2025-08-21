@@ -88,7 +88,8 @@ public class SecurityConfig {
                                 "/oauth2/**", "/login/oauth2/**",
                                 "/actuator/health",
                                 "/.well-known/**",
-                                "/ws-chat", "/ws-chat/**", "/ws-chat-sockjs", "/ws-chat-sockjs/**"
+                                "/ws-chat", "/ws-chat/**", "/ws-chat-sockjs", "/ws-chat-sockjs/**",
+                                "/api/course/{courseId}/preview"
 
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/course", "/api/course/").permitAll()
