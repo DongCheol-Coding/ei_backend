@@ -12,5 +12,6 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     List<Course> findByPublishedTrueAndDeletedFalse(Sort sort);
     Optional<Course> findByTitle(String title);
     boolean existsByTitle(String title);
+    Optional<Course> findByIdAndPublishedTrueAndDeletedFalse(Long id);
 
 }

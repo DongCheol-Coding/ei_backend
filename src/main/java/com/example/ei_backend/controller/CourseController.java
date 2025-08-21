@@ -2,6 +2,7 @@ package com.example.ei_backend.controller;
 
 import com.example.ei_backend.config.ApiResponse;
 import com.example.ei_backend.domain.dto.CourseDto;
+import com.example.ei_backend.domain.dto.CoursePurchasePreviewDto;
 import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -69,6 +70,19 @@ public class CourseController {
     public ResponseEntity<ApiResponse<List<CourseDto.Summary>>> listCourses() {
         var items = courseService.listAllPublicCourses();
         return ResponseEntity.ok(ApiResponse.ok(items));
+    }
+
+    @GetMapping("/{courseId}/preview")
+    @PreAuthorize("permitAll()")
+    @Operation(summary = "코스 결제 미리보기(공개 전용)", description = "결제 직전에 노출할 코스 정보")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "없거나 미공개/삭제")
+    })
+    public ResponseEntity<ApiResponse<CoursePurchasePreviewDto>> getCoursePreview(
+            @PathVariable Long courseId) {
+        var dto = courseService.getPurchasePreview(courseId);
+        return ResponseEntity.ok(ApiResponse.ok(dto));
     }
 
     // 전체 공개 코스 목록 (검색/페이징)
