@@ -60,6 +60,7 @@ public class CourseDto {
     public static class MyCourseItem {
         private Long courseId;
         private String courseTitle;
+        private String imageUrl;
         private double progress;     // 0.0~1.0
         private int completedCount;
         private int totalCount;

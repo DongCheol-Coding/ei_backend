@@ -13,6 +13,7 @@ public class MyCourseProgressDto {
 
     private Long courseId;
     private String courseTitle;
+    private String imageUrl;
     private double progress;
     private int completedCount;
     private int totalCount;
