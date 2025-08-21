@@ -101,11 +101,11 @@ public class PaymentController {
 
     @PostMapping("/approve")
     public ResponseEntity<ApiResponse<String>> approvePayment(
-            @RequestBody @Valid KakaoPayApproveRequestDto body,
+            @RequestParam("pg_token") String pgToken,
             @AuthenticationPrincipal UserPrincipal me
     ) {
-        String result = kakaoPayService.approve(body.getPgToken(), me.getUsername());
-        return ResponseEntity.ok(ApiResponse.ok(result));
+        String result = kakaoPayService.approve(pgToken, me.getUsername());
+        return ResponseEntity.ok(ApiResponse.ok("결제가 완료되었습니다."));
     }
 
 
