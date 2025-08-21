@@ -115,6 +115,7 @@ public class CourseService {
                     return CourseDto.MyCourseItem.builder()
                             .courseId(courseId)
                             .courseTitle(uc.getCourse().getTitle())
+                            .imageUrl(uc.getCourse().getImageUrl())
                             .progress(progress)
                             .completedCount(completed)
                             .totalCount(total)

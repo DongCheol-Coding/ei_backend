@@ -41,8 +41,14 @@ public class KakaoPayService {
     @Value("${kakaopay.api.cid}")
     private String cid;
 
-    @Value("${app.client.host}")
-    private String clientHost;
+//    @Value("${app.client.host}")
+//    private String clientHost;
+
+    @Value("${app.front.success-url}")
+    private String frontSuccessUrl;
+
+    @Value("${app.client.host}") // 예: https://api.dongcheolcoding.life
+    private String apiBaseUrl;
 
     private final Map<String, String> orderIdByUser = new ConcurrentHashMap<>(); // userEmail -> orderId
     private final Map<String, String> tidByOrderId = new ConcurrentHashMap<>();  // orderId -> tid
@@ -76,9 +82,9 @@ public class KakaoPayService {
                     .taxFreeAmount(0)
                     .vatAmount(course.getPrice() / 10)
                     //  카카오 → 프론트 라우트로 보냄
-                    .approvalUrl(clientHost + "/payment/success")
-                    .cancelUrl(clientHost + "/payment/cancel")
-                    .failUrl(clientHost + "/payment/fail")
+                    .approvalUrl(frontSuccessUrl)                               // 프론트 콜백
+                    .cancelUrl(apiBaseUrl + "/api/payment/cancel")              // 백엔드 취소
+                    .failUrl(apiBaseUrl + "/api/payment/fail")                  // 백엔드 실패
                     .build();
 
             HttpEntity<KakaoPayReadyRequestDto> entity = new HttpEntity<>(request, headers);
