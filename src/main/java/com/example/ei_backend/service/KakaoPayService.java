@@ -1,13 +1,11 @@
 package com.example.ei_backend.service;
 
 import com.example.ei_backend.domain.dto.KakaoPayApproveRequestDto;
+import com.example.ei_backend.domain.dto.KakaoPayApproveResponseDto;
 import com.example.ei_backend.domain.dto.KakaoPayReadyRequestDto;
 import com.example.ei_backend.domain.dto.KakaoPayReadyResponseDto;
-import com.example.ei_backend.domain.entity.Course;
-import com.example.ei_backend.domain.entity.UserCourse;
-import com.example.ei_backend.repository.CourseRepository;
-import com.example.ei_backend.repository.UserCourseRepository;
-import com.example.ei_backend.repository.UserRepository;
+import com.example.ei_backend.domain.entity.*;
+import com.example.ei_backend.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,8 +19,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -34,6 +36,8 @@ public class KakaoPayService {
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
     private final UserCourseRepository userCourseRepository;
+    private final PendingPaymentRepository pendingPaymentRepository;
+    private final PaymentRepository paymentRepository;
 
     @Value("${kakaopay.api.secret.key}")
     private String kakaoPaySecretKey;
@@ -50,17 +54,10 @@ public class KakaoPayService {
     @Value("${app.client.host}") // 예: https://api.dongcheolcoding.life
     private String apiBaseUrl;
 
-    private final Map<String, String> orderIdByUser = new ConcurrentHashMap<>(); // userEmail -> orderId
-    private final Map<String, String> tidByOrderId = new ConcurrentHashMap<>();  // orderId -> tid
-    private final Map<String, Long> courseIdByOrderId = new ConcurrentHashMap<>(); // orderId -> courseId
-
 
     @Transactional
     public KakaoPayReadyResponseDto ready(Course course, String userEmail) {
         try {
-   //         log.info(" [KakaoPay] Admin Key: {}", kakaoPaySecretKey);
-   //         log.info(" [KakaoPay] CID: {}", cid);
-
             log.info(" course title = {}", course.getTitle());
             log.info(" course price = {}", course.getPrice());
             log.info(" userEmail = {}", userEmail);
@@ -68,9 +65,14 @@ public class KakaoPayService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", "SECRET_KEY " + kakaoPaySecretKey);
-            log.info(" Authorization 헤더: {}", headers.getFirst("Authorization"));
 
             String orderId = UUID.randomUUID().toString();
+
+            String approvalUrlWithOrderId = UriComponentsBuilder
+                    .fromHttpUrl(frontSuccessUrl)
+                    .queryParam("orderId", orderId)
+                    .build(true)
+                    .toUriString();
 
             KakaoPayReadyRequestDto request = KakaoPayReadyRequestDto.builder()
                     .cid(cid)
@@ -81,15 +83,13 @@ public class KakaoPayService {
                     .totalAmount(course.getPrice())
                     .taxFreeAmount(0)
                     .vatAmount(course.getPrice() / 10)
-                    //  카카오 → 프론트 라우트로 보냄
-                    .approvalUrl(frontSuccessUrl)                               // 프론트 콜백
-                    .cancelUrl(apiBaseUrl + "/api/payment/cancel")              // 백엔드 취소
-                    .failUrl(apiBaseUrl + "/api/payment/fail")                  // 백엔드 실패
+                    .approvalUrl(approvalUrlWithOrderId)
+                    .cancelUrl(apiBaseUrl + "/api/payment/cancel")
+                    .failUrl(apiBaseUrl + "/api/payment/fail")
                     .build();
 
             HttpEntity<KakaoPayReadyRequestDto> entity = new HttpEntity<>(request, headers);
 
-            //  우선 String으로 응답 받아서 로그 확인
             ResponseEntity<String> rawResponse = new RestTemplate().postForEntity(
                     "https://open-api.kakaopay.com/online/v1/payment/ready",
                     entity,
@@ -98,17 +98,21 @@ public class KakaoPayService {
 
             log.info(" [카카오 응답 원문] {}", rawResponse.getBody());
 
-            // ✅ 응답을 DTO로 변환
             ObjectMapper objectMapper = new ObjectMapper();
-            KakaoPayReadyResponseDto res = objectMapper.readValue(rawResponse.getBody(),
-                    KakaoPayReadyResponseDto.class);
+            KakaoPayReadyResponseDto res = objectMapper.readValue(
+                    rawResponse.getBody(), KakaoPayReadyResponseDto.class);
 
-            orderIdByUser.put(userEmail, orderId);
-            tidByOrderId.put(orderId, res.getTid());
-            courseIdByOrderId.put(orderId, course.getId());
-
-//            userTidMap.put(userEmail, responseDto.getTid());
-//            userOrderIdMap.put(userEmail, orderId);
+            // ✅ Map에 넣던 부분 삭제하고, DB에 보관
+            pendingPaymentRepository.save(
+                    PendingPayment.builder()
+                            .orderId(orderId)
+                            .tid(res.getTid())
+                            .userEmail(userEmail)
+                            .courseId(course.getId())
+                            .amount(course.getPrice())
+                            .status(PaymentStatus.READY)
+                            .build()
+            );
 
             return res;
 
@@ -122,53 +126,92 @@ public class KakaoPayService {
         }
     }
 
+
     @Transactional
-    public String approve(String pgToken, String userEmail) {
-        String orderId = orderIdByUser.get(userEmail);
-        if (orderId == null) throw new IllegalStateException("주문정보가 없습니다. 다시 시도해 주세요.");
+    public String approve(String orderId, String pgToken, String userEmail, Long userId) {
+        // 1) 보류 결제 조회
+        PendingPayment pending = pendingPaymentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new IllegalStateException("주문정보가 없습니다. 다시 시도해 주세요."));
+        if (!pending.getUserEmail().equals(userEmail)) {
+            throw new IllegalStateException("주문 소유자가 아닙니다.");
+        }
+        if (pending.getStatus() == PaymentStatus.APPROVED) {
+            return "{\"message\":\"already approved\"}";
+        }
 
-        String tid = tidByOrderId.get(orderId);
-        if (tid == null) throw new IllegalStateException("TID가 없습니다. 다시 시도해 주세요.");
-
-        Long courseId = courseIdByOrderId.get(orderId);
-        if (courseId == null) throw new IllegalStateException("코스 정보가 없습니다. 다시 시도해 주세요.");
-
-        // 카카오 승인
+        // 2) 카카오 승인 호출 (DTO로 수신)
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("Authorization", "SECRET_KEY " + kakaoPaySecretKey);
 
-        var req = KakaoPayApproveRequestDto.builder()
-                .cid(cid).tid(tid).partnerOrderId(orderId)
-                .partnerUserId(userEmail).pgToken(pgToken).build();
+        KakaoPayApproveRequestDto req = KakaoPayApproveRequestDto.builder()
+                .cid(cid)
+                .tid(pending.getTid())
+                .partnerOrderId(orderId)
+                .partnerUserId(userEmail)
+                .pgToken(pgToken)
+                .build();
 
-        var entity = new HttpEntity<>(req, headers);
-        var response = new RestTemplate().postForEntity(
-                "https://open-api.kakaopay.com/online/v1/payment/approve", entity, String.class);
+        ResponseEntity<KakaoPayApproveResponseDto> resp = new RestTemplate().postForEntity(
+                "https://open-api.kakaopay.com/online/v1/payment/approve",
+                new HttpEntity<>(req, headers),
+                KakaoPayApproveResponseDto.class
+        );
 
-        // 수강 등록 멱등
-        var user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new IllegalStateException("사용자 없음"));
-        var course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new IllegalStateException("코스 없음"));
-
-        boolean enrolled = userCourseRepository.existsByUserIdAndCourseId(user.getId(), course.getId());
-        if (!enrolled) {
-            userCourseRepository.save(
-                    UserCourse.builder()
-                            .user(user)
-                            .course(course)
-                            .registeredAt(java.time.LocalDateTime.now())
-                            .build()
-            );
+        KakaoPayApproveResponseDto body = Optional.ofNullable(resp.getBody())
+                .orElseThrow(() -> new IllegalStateException("카카오 승인 응답이 비어있습니다."));
+        if (!resp.getStatusCode().is2xxSuccessful()) {
+            throw new IllegalStateException("카카오 승인 실패: " + resp.getStatusCode());
         }
 
-        // 임시 맵 정리
-        tidByOrderId.remove(orderId);
-        courseIdByOrderId.remove(orderId);
-        orderIdByUser.remove(userEmail);
+        // 3) 금액/시간 검증
+        int approvedAmount = body.getAmount().getTotal();
+        if (approvedAmount != pending.getAmount()) {
+            throw new IllegalStateException("금액 불일치");
+        }
+        LocalDateTime approvedAt = (body.getApprovedAt() != null)
+                ? OffsetDateTime.parse(body.getApprovedAt()).toLocalDateTime()
+                : LocalDateTime.now();
 
-        return response.getBody();
+        // 4) 수강 등록 멱등
+        var user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new IllegalStateException("사용자 없음"));
+        var course = courseRepository.findById(pending.getCourseId())
+                .orElseThrow(() -> new IllegalStateException("코스 없음"));
+
+        if (!userCourseRepository.existsByUserIdAndCourseId(user.getId(), course.getId())) {
+            userCourseRepository.save(UserCourse.builder()
+                    .user(user)
+                    .course(course)
+                    .registeredAt(LocalDateTime.now())
+                    .build());
+        }
+
+        // 5) Payment 저장
+        if (!paymentRepository.existsByTid(pending.getTid())) {
+            Payment payment = Payment.builder()
+                    .orderId(orderId)
+                    .tid(pending.getTid())
+                    .user(user)
+                    .course(course)
+                    .amount(approvedAmount)
+                    .status(PaymentStatus.APPROVED)
+                    .paymentDate(approvedAt)
+                    .build();
+            paymentRepository.save(payment);
+        }
+
+        // 6) 상태 변경
+        pending.setStatus(PaymentStatus.APPROVED);
+
+        // 7) 필요하면 프론트에 넘길 DTO를 만들어 반환해도 됨.
+        return "{\"message\":\"approved\",\"tid\":\"" + body.getTid() + "\"}";
+    }
+
+    private java.time.LocalDateTime parseKakaoTime(String s) {
+        if (s == null || s.isBlank()) return java.time.LocalDateTime.now();
+        return java.time.OffsetDateTime.parse(s).toLocalDateTime();
+
     }
 
 

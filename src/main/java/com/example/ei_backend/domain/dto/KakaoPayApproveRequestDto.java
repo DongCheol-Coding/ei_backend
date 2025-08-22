@@ -1,5 +1,6 @@
 package com.example.ei_backend.domain.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import jakarta.validation.constraints.NotBlank;
@@ -17,5 +18,6 @@ public class KakaoPayApproveRequestDto {
     private String partnerUserId;    // 가맹점 회원 ID
 
     @NotBlank
+    @JsonAlias({"pg_token", "pgToken"})
     private String pgToken;          // 카카오페이에서 전달받은 pg_token
 }
