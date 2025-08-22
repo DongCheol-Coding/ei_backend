@@ -78,15 +78,25 @@ public class LectureCommandService {
         VideoAsset asset = videoAssetRepository.findByLectureId(lectureId)
                 .orElseGet(() -> {
                     VideoAsset v = VideoAsset.of(req.getStorageKey());
-                    l.attachVideo(v);                 // 양방향 세팅
-                    return videoAssetRepository.save(v);   // 새로 만들 땐 확실히 저장
+                    l.attachVideo(v);
+                    return videoAssetRepository.save(v);
                 });
 
         String url = resolvePublicUrl(req.getStorageKey());
         asset.markReady(url, req.getDurationSec(), req.getSizeBytes());
 
+        // ✅ 반드시 동기화: 비디오에 설정된 길이를 Lecture에도 반영
+        if (asset.getDurationSec() > 0) {
+            // 편한 방법 1) 세터/메서드 추가
+            l.updateDurationFromVideo(asset.getDurationSec());
+            // 또는 편한 방법 2) 직접 필드 반영용 메서드 만들어 사용
+            // l.setDurationSec(asset.getDurationSec());
+        }
+
         return lectureMapper.toDto(l);
     }
+
+
 
     private String buildStorageKey(Lecture lecture, String fileName) {
         Long courseId = lecture.getCourse().getId();
