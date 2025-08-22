@@ -78,7 +78,7 @@
         same-site: ${COOKIE_SAMESITE:Lax}   # 기본: Lax (같은 오리진)
         max-days: 14
       front:
-        success-url: ${FRONT_SUCCESS_URL:https://dongcheolcoding.life/course/kakaopa}
+        success-url: ${FRONT_SUCCESS_URL:https://dongcheolcoding.life/course/kakaopay}
       cdn-base-url: ${CDN_BASE_URL:https://cdn.dongcheolcoding.life}
 
     cloud:
