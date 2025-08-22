@@ -13,7 +13,7 @@ public interface LectureRepository extends JpaRepository<Lecture, Long> {
 
     List<Lecture> findByCourseIdOrderByOrderIndexAsc(Long courseId);
 
-    int countByCourseId(Long courseId);
+    long countByCourseId(Long courseId);
 
     @Query("select coalesce(sum(l.durationSec), 0) from Lecture l where l.course.id = :courseId")
     int sumDurationByCourseId(@Param("courseId") Long courseId);
