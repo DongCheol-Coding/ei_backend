@@ -80,6 +80,8 @@
       front:
         success-url: ${FRONT_SUCCESS_URL:https://dongcheolcoding.life/course/kakaopay}
       cdn-base-url: ${CDN_BASE_URL:https://cdn.dongcheolcoding.life}
+      seed:
+        enabled: false
 
     cloud:
       aws:

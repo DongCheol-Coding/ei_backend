@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.Set;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -74,22 +75,25 @@ public class TestPurchaseSeed implements CommandLineRunner {
     }
 
     private void ensureApprovedPayment(User user, Course course) {
-        boolean exists = paymentRepository
-                .existsByUserIdAndCourseIdAndStatus(user.getId(), course.getId(), PaymentStatus.APPROVED);
-        if (exists) {
-            log.info("[Seed] 이미 승인 결제가 존재합니다. (userId={}, courseId={})", user.getId(), course.getId());
+        // 중복 시드 방지: TID 기준으로 체크
+        String seedTid = "SEED-TID-" + user.getId() + "-" + course.getId();
+        if (paymentRepository.existsByTid(seedTid)) {
+            log.info("[Seed] 이미 승인 결제가 존재합니다. (tid={})", seedTid);
             return;
         }
 
         Payment payment = Payment.builder()
                 .user(user)
                 .course(course)
+                .orderId("SEED-ORDER-" + UUID.randomUUID())   // ★ NOT NULL + UNIQUE
+                .tid(seedTid)                                  // ★ NOT NULL + UNIQUE
                 .amount(course.getPrice())
                 .method(PaymentMethod.KAKAOPAY)
                 .status(PaymentStatus.APPROVED)
-                .pgTid("TID-TEST-1234567890")
+                .paymentDate(LocalDateTime.now())             // ★ NOT NULL
                 .requestedAt(LocalDateTime.now().minusMinutes(1))
                 .approvedAt(LocalDateTime.now())
+                // .pgTid(seedTid)  // 선택: 굳이 필요 없으면 생략
                 .build();
 
         paymentRepository.save(payment);
