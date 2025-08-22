@@ -11,4 +11,6 @@ import java.util.List;
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
     boolean existsByUserIdAndCourseIdAndStatus(Long userId, Long courseId, PaymentStatus status);
     List<Payment> findByUserIdOrderByIdDesc(Long userId);
+
+    boolean existsByTid(String tid);
 }

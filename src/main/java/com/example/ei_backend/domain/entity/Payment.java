@@ -10,20 +10,29 @@ import java.time.LocalDateTime;
 
 @Entity
 @Getter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class Payment {
-    @Id
-    @GeneratedValue
+
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id")
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "course_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "course_id")
     private Course course;
 
+    @Column(nullable = false, unique = true)
+    private String orderId;
+
+    @Column(nullable = false, unique = true)
+    private String tid;
+
+    @Column(nullable = false)
     private int amount;
 
     @Enumerated(EnumType.STRING)
@@ -32,7 +41,12 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     private PaymentStatus status;
 
-    private String pgTid;                 // 카카오 TID
+    @Column(nullable = false)
+    private LocalDateTime paymentDate;
+
+    // 둘 중 하나만 쓰세요. tid와 의미가 겹치면 혼란을 줄 수 있어요.
+    private String pgTid;
     private LocalDateTime requestedAt;
     private LocalDateTime approvedAt;
 }
+

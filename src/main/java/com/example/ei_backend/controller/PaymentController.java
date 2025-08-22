@@ -100,12 +100,19 @@ public class PaymentController {
     })
 
     @PostMapping("/approve")
+// @GetMapping("/approve")  // 프론트가 GET으로 호출한다면 이걸로 교체
     public ResponseEntity<ApiResponse<String>> approvePayment(
+            @RequestParam("orderId") String orderId,
             @RequestParam("pg_token") String pgToken,
             @AuthenticationPrincipal UserPrincipal me
     ) {
-        String result = kakaoPayService.approve(pgToken, me.getUsername());
-        return ResponseEntity.ok(ApiResponse.ok("결제가 완료되었습니다."));
+        String result = kakaoPayService.approve(
+                orderId,
+                pgToken,
+                me.getUsername(),   // = 이메일(네 UserPrincipal이 이메일을 username으로 쓰는 구조면)
+                me.getUserId()      // Long userId
+        );
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
 
