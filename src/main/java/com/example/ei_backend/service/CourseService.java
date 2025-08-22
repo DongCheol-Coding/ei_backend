@@ -57,7 +57,7 @@ public class CourseService {
     @Transactional
     public Course findById(Long courseId) {
         return courseRepository.findById(courseId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 강의입니다."));
+                .orElseThrow(() -> new NotFoundException("course"));
     }
 
     @Transactional(readOnly = true)
@@ -96,6 +96,8 @@ public class CourseService {
     public CourseDto.Summary setPublished(Long courseId, boolean published) {
         Course course = findById(courseId);
         course.setPublished(published);
+        // JPA 더티체킹으로 flush 되지만, 명시 저장을 선호하면 아래 추가
+        // courseRepository.save(course);
         return toSummary(course);
     }
 
@@ -103,20 +105,22 @@ public class CourseService {
     @Transactional(readOnly = true)
     public CourseDto.Page<CourseDto.MyCourseItem> findMyCourses(Long userId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
-        Page<UserCourse> result = userCourseRepository.findByUserId(userId, pageable); // 필드가 ManyToOne User user; 라면 _Id 사용
+        Page<UserCourse> result = userCourseRepository.findByUser_Id(userId, pageable);
 
         List<CourseDto.MyCourseItem> items = result.getContent().stream()
                 .map(uc -> {
-                    Long courseId = uc.getCourse().getId();
-                    int total = lectureRepository.countByCourseId(courseId);
-                    double progress = uc.getProgress();          // UserCourse에 있는 값
-                    int completed = (int) Math.round(progress * total);
+                    var c = uc.getCourse();
+                    Long courseId = c.getId();
+                    int total = (int) lectureRepository.countByCourseId(courseId);
+
+                    double progressRatio = uc.getProgress() / 100.0; // 0.0 ~ 1.0
+                    int completed = (int) Math.round(progressRatio * Math.max(total, 1));
 
                     return CourseDto.MyCourseItem.builder()
                             .courseId(courseId)
-                            .courseTitle(uc.getCourse().getTitle())
-                            .imageUrl(uc.getCourse().getImageUrl())
-                            .progress(progress)
+                            .courseTitle(c.getTitle())
+                            .imageUrl(c.getImageUrl())
+                            .progress(progressRatio)
                             .completedCount(completed)
                             .totalCount(total)
                             .build();
@@ -132,7 +136,6 @@ public class CourseService {
                 .last(result.isLast())
                 .build();
     }
-
     /** 결제 직전 노출용(공개 코스만) */
     public CoursePurchasePreviewDto getPurchasePreview(Long courseId) {
         Course c = courseRepository.findByIdAndPublishedTrueAndDeletedFalse(courseId)
