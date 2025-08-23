@@ -16,5 +16,6 @@ public class LectureUpdateRequest {
     private Integer orderIndex;
     private Boolean isPublic;
     private Integer durationSec;
+    private Long sizeBytes;
 
 }

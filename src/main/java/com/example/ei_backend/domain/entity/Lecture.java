@@ -73,8 +73,7 @@ public class Lecture extends BaseTimeEntity {
         this.durationSec = 0; }
     }
 
-
     public void updateDurationFromVideo(int sec) {
-        this.durationSec = Math.max(0, sec);
+        if (sec > 0) this.durationSec = sec;
     }
 }

@@ -38,52 +38,53 @@ public class LectureCreateWithVideoService {
     private String region;
 
     @Transactional
-    public LectureDetailDto create(Long courseId, LectureCreateRequest request, MultipartFile video) {
+    public LectureDetailDto create(Long courseId, LectureCreateRequest request, MultipartFile video) throws IOException {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new NotFoundException("course"));
 
-        // 1) Lecture 저장 (PK 필요)
         Lecture lecture = Lecture.create(
-                course,
-                request.getTitle(),
-                request.getDescription(),
-                request.getOrderIndex(),
-                request.getIsPublic()
+                course, request.getTitle(), request.getDescription(),
+                request.getOrderIndex(), request.getIsPublic()
         );
         lectureRepository.save(lecture);
 
+        // 추가: 파일 없어도 durationSec이 오면 강의에 반영
+        if (request.getDurationSec() != null) {
+            lecture.updateDurationFromVideo(request.getDurationSec());
+        }
+
         if (video != null && !video.isEmpty()) {
             String dir = String.format("courses/%d/lectures/%d", courseId, lecture.getId());
-            String url;
-            try {
-                url = s3Uploader.upload(video, dir);
-            } catch (Exception e) {
-                throw new RuntimeException("S3 upload failed", e);
-            }
+            String url = s3Uploader.upload(video, dir);
 
             String prefix = "https://" + bucket + ".s3." + region + ".amazonaws.com/";
             String key = url.startsWith(prefix) ? url.substring(prefix.length()) : url;
 
-            int duration = request.getDurationSec() == null ? 0 : request.getDurationSec();
+            int duration = (request.getDurationSec() == null) ? 0 : request.getDurationSec();
+            long size = (request.getSizeBytes() != null) ? request.getSizeBytes() : video.getSize();
 
             VideoAsset asset = videoAssetRepository.findByLectureId(lecture.getId()).orElse(null);
             if (asset == null) {
-                asset = VideoAsset.of(key);                  // 새 엔티티 생성
-                asset.markReady(url, duration, video.getSize()); // INSERT 전에 필수값 다 채움
-                lecture.attachVideo(asset);                  // 연관관계 연결
-                videoAssetRepository.save(asset);            // 이제 저장
+                asset = VideoAsset.of(key);
+                asset.markReady(url, duration, size);
+                lecture.attachVideo(asset);                 // ⬅︎ 새 자산: attach로 동기화
+                videoAssetRepository.save(asset);
             } else {
-                // key 갱신 메서드가 있으면 사용 (없으면 생략)
-                // asset.changeStorageKey(key);
-                asset.markReady(url, duration, video.getSize()); // UPDATE만 발생
+                // 기존 자산 갱신
+                // (key 변경 메서드가 있다면 갱신)
+                asset.markReady(url, duration, size);
+                if (duration > 0) {
+                    lecture.updateDurationFromVideo(duration); // ⬅︎ ✅ 기존 자산: 동기화 보장
+                }
             }
         }
 
-        String videoUrl = (lecture.getVideo() != null && lecture.getVideo().getStatus() == VideoAsset.Status.READY)
+        String videoUrl = (lecture.getVideo()!=null && lecture.getVideo().getStatus()==VideoAsset.Status.READY)
                 ? lecture.getVideo().getUrl() : null;
 
         return lectureMapper.toDetail(lecture, videoUrl, 0.0);
     }
+
 
     @Transactional
     public LectureDetailDto update(Long lectureId,
@@ -127,14 +128,18 @@ public class LectureCreateWithVideoService {
             } else {
                 // 필요 시 storageKey 갱신 메서드가 있다면 호출
                 asset.markReady(url, duration, video.getSize());
+                lecture.updateDurationFromVideo(duration);
             }
         } else {
-            // 3) 영상 파일이 없고, duration만 텍스트로 들어왔으면 그 값만 갱신(선택)
-            if (req.getDurationSec() != null && asset != null) {
+        // 영상 파일이 없고, duration만 텍스트로 들어왔으면 갱신
+        if (req.getDurationSec() != null) {
+            if (asset != null) {
                 asset.setDurationSec(req.getDurationSec());
                 videoAssetRepository.save(asset);
             }
+            lecture.updateDurationFromVideo(req.getDurationSec()); // ⬅️ null 아닐 때만 호출
         }
+    }
 
         String videoUrl = (lecture.getVideo() != null
                 && lecture.getVideo().getStatus() == VideoAsset.Status.READY)
