@@ -197,11 +197,14 @@ public class KakaoPayService {
             Payment payment = Payment.builder()
                     .orderId(orderId)
                     .tid(pending.getTid())
+                    .pgTid(body.getTid())
                     .user(user)
                     .course(course)
                     .amount(approvedAmount)
+                    .method(PaymentMethod.KAKAOPAY)
                     .status(PaymentStatus.APPROVED)
-                    .paymentDate(approvedAt)
+                    .paymentDate(approvedAt)              // 결제일(표시용)
+                    .approvedAt(approvedAt)               //  승인일도 저장
                     .build();
             paymentRepository.save(payment);
         }
