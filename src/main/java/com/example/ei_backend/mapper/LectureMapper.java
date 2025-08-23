@@ -17,14 +17,16 @@ public interface LectureMapper {
     @Mapping(target = "orderIndex", source = "e.orderIndex")
     @Mapping(target = "durationSec", source = "e.durationSec")
     @Mapping(target = "progress", expression = "java(progress)")
+    @Mapping(target = "isPublic", expression = "java(e.isPublic())")
     LectureSummaryDto toSummary(Lecture e, double progress);
 
     @Mapping(target = "id", source = "e.id")
-    @Mapping(target = "courseId", source = "e.course.id")
     @Mapping(target = "title", source = "e.title")
     @Mapping(target = "description", source = "e.description")
     @Mapping(target = "durationSec", source = "e.durationSec")
+    @Mapping(target = "isPublic", expression = "java(e.isPublic())")
     @Mapping(target = "videoUrl", expression = "java(videoUrl)")
     @Mapping(target = "progress", expression = "java(progress)")
+    @Mapping(target = "sizeBytes", expression = "java(e.getVideo() != null ? e.getVideo().getSizeBytes() : null)")
     LectureDetailDto toDetail(Lecture e, String videoUrl, double progress);
 }

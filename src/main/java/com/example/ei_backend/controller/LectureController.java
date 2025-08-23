@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,8 +41,10 @@ public class LectureController {
     private final ObjectMapper objectMapper;
 
     /** ADMIN: 멀티파트(강의 + 영상 한번에) */
-    @Operation(summary = "강의 생성(영상 포함, multipart)",
-            description = "관리자가 멀티파트로 강의 메타데이터와 영상을 함께 업로드하여 생성합니다.")
+    @Operation(
+            summary = "강의 생성(영상 포함, multipart)",
+            description = "관리자가 멀티파트로 강의 메타데이터(JSON 문자열)와 영상을 함께 업로드하여 생성합니다."
+    )
     @io.swagger.v3.oas.annotations.responses.ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200", description = "생성 성공",
@@ -53,25 +56,43 @@ public class LectureController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음(ADMIN)")
     })
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping(value = "/courses/{courseId}/lectures/with-video",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(
+            value = "/courses/{courseId}/lectures/with-video",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
     public ApiResponse<LectureDetailDto> createWithVideo(
-            @Parameter(description = "코스 ID", example = "101") @PathVariable Long courseId,
+            @Parameter(description = "코스 ID", example = "101")
+            @PathVariable Long courseId,
 
-            //  여기만 변경: LectureCreateRequest -> String
             @Parameter(
                     name = "data",
-                    description = "강의 생성 JSON (LectureCreateRequest) " +
-                            "{\"title\":\"강의 제목\",\"description\":\"내용\",\"orderIndex\":0(강의순서),\"isPublic\":true}",
-                    required = true
+                    description = "강의 생성 JSON (LectureCreateRequest)",
+                    required = true,
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = LectureCreateRequest.class),
+                            examples = @ExampleObject(
+                                    name = "LectureCreateRequest",
+                                    value = "{\n" +
+                                            "  \"title\": \"2강 환경셋업\",\n" +
+                                            "  \"description\": \"설치\",\n" +
+                                            "  \"orderIndex\": 0,\n" +
+                                            "  \"isPublic\": true,\n" +
+                                            "  \"durationSec\": 240,\n" +
+                                            "  \"sizeBytes\": 987654321\n" +
+                                            "}"
+                            )
+                    )
             )
             @RequestPart("data") String dataJson,
 
             @Parameter(
                     name = "video",
                     description = "업로드할 강의 영상 파일(선택)",
-                    content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
-                            schema = @Schema(type = "string", format = "binary"))
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                            schema = @Schema(type = "string", format = "binary")
+                    )
             )
             @RequestPart(value = "video", required = false) MultipartFile video
     ) throws Exception {
@@ -83,7 +104,6 @@ public class LectureController {
                 createWithVideoService.create(courseId, lectureCreateRequest, video)
         );
     }
-
 
     @Operation(
             summary = "강의 수정(영상 포함, multipart)",
@@ -101,23 +121,43 @@ public class LectureController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "강의 없음")
     })
     @PreAuthorize("hasRole('ADMIN')")
-    @PutMapping(value = "/lectures/{lectureId}/with-video",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PutMapping(
+            value = "/lectures/{lectureId}/with-video",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
     public ApiResponse<LectureDetailDto> updateWithVideo(
-            @Parameter(description = "강의 ID", example = "1001") @PathVariable Long lectureId,
+            @Parameter(description = "강의 ID", example = "1001")
+            @PathVariable Long lectureId,
+
             @Parameter(
                     name = "data",
-                    description = "강의 수정 JSON(LectureUpdateRequest) 문자열",
+                    description = "강의 수정 JSON (LectureUpdateRequest)",
                     required = true,
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = LectureUpdateRequest.class))
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = LectureUpdateRequest.class),
+                            examples = @ExampleObject(
+                                    name = "LectureUpdateRequest",
+                                    value = "{\n" +
+                                            "  \"title\": \"제목(옵션)\",\n" +
+                                            "  \"description\": \"설치(옵션)\",\n" +
+                                            "  \"orderIndex\": 1,\n" +
+                                            "  \"isPublic\": true,\n" +
+                                            "  \"durationSec\": 300,\n" +
+                                            "  \"sizeBytes\": 123456789\n" +
+                                            "}"
+                            )
+                    )
             )
             @RequestPart("data") String dataJson,
+
             @Parameter(
                     name = "video",
                     description = "업로드할 강의 영상 파일(선택)",
-                    content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
-                            schema = @Schema(type = "string", format = "binary"))
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                            schema = @Schema(type = "string", format = "binary")
+                    )
             )
             @RequestPart(value = "video", required = false) MultipartFile video
     ) throws Exception {
@@ -203,19 +243,4 @@ public class LectureController {
     ) {
         return ApiResponse.ok(progressService.update(me.getUserId(), lectureId, req.getWatchedSec()));
     }
-
-    // 테스트 용
-//    @PreAuthorize("hasRole('ADMIN')")
-//    @PostMapping(value="/courses/{courseId}/lectures/with-video",
-//            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-//    public ApiResponse<LectureDetailDto> createWithVideo(
-//            @PathVariable Long courseId,
-//            @RequestPart("data") String dataJson,
-//            @RequestPart(value="video", required=false) MultipartFile video
-//    ) throws Exception {
-//        LectureCreateRequest req =
-//                objectMapper.readValue(dataJson, LectureCreateRequest.class);
-//        return ApiResponse.ok(createWithVideoService.create(courseId, req, video));
-//    }
-
 }

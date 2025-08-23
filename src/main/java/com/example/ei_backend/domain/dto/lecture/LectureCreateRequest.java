@@ -24,5 +24,6 @@ public class LectureCreateRequest {
     private Boolean isPublic;
 
     private Integer durationSec;
+    private Long sizeBytes;
 
 }
