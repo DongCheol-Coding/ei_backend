@@ -6,8 +6,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 
-import java.util.List;
+import java.util.Optional;
 
 @Configuration
 @RequiredArgsConstructor
@@ -16,45 +17,53 @@ public class TestDataInitializer {
     private final CourseRepository courseRepository;
 
     @Bean
+    @Order(5) // 다른 시드보다 먼저/나중에 실행하고 싶으면 숫자 조절
     public CommandLineRunner initCourseData() {
         return args -> {
-            // 이미 데이터가 있으면 아무 것도 안 함 (중복 insert 방지)
-            if (courseRepository.count() > 0) return;
-
-            List<Course> courses = List.of(
-                    Course.builder()
-                            .title("DATA AI")
-                            .description("데이터 분석 · 머신러닝 · MLOps 핵심 커리큘럼")
-                            .price(219)
-                            .imageUrl(cdn("/images/courses/data-ai.jpg"))
-                            .build(),
-                    Course.builder()
-                            .title("풀스택")
-                            .description("프론트엔드 + 백엔드 풀스택 실전 프로젝트")
-                            .price(259)
-                            .imageUrl(cdn("/images/courses/fullstack.jpg"))
-                            .build(),
-                    Course.builder()
-                            .title("프론트엔드")
-                            .description("React 기반 웹 프론트엔드 심화")
-                            .price(179)
-                            .imageUrl(cdn("/images/courses/frontend.jpg"))
-                            .build(),
-                    Course.builder()
-                            .title("백엔드")
-                            .description("Java/Spring Boot 백엔드 핵심 & 실전")
-                            .price(199)
-                            .imageUrl(cdn("/images/courses/backend.jpg"))
-                            .build()
+            upsertCourse(
+                    "DATA AI",
+                    "데이터 분석 · 머신러닝 · MLOps 핵심 커리큘럼",
+                    219,
+                    cdn("/images/courses/data-ai.jpg")
             );
-
-            courseRepository.saveAll(courses);
-            System.out.println("▶ 초기 코스 4개 등록 완료 (DATA AI / 풀스택 / 프론트엔드 / 백엔드)");
+            upsertCourse(
+                    "풀스택",
+                    "프론트엔드 + 백엔드 풀스택 실전 프로젝트",
+                    259,
+                    cdn("/images/courses/fullstack.jpg")
+            );
+            upsertCourse(
+                    "프론트엔드",
+                    "React 기반 웹 프론트엔드 심화",
+                    179,
+                    cdn("/images/courses/frontend.jpg")
+            );
+            upsertCourse(
+                    "백엔드",
+                    "Java/Spring Boot 백엔드 핵심 & 실전",
+                    199,
+                    cdn("/images/courses/backend.jpg")
+            );
+            System.out.println("▶ 코스 시드 완료 (필요한 항목만 upsert)");
         };
     }
 
+    private void upsertCourse(String title, String description, int price, String imageUrl) {
+        Optional<Course> exists = courseRepository.findByTitle(title);
+        if (exists.isPresent()) return;
+
+        courseRepository.save(
+                Course.builder()
+                        .title(title)
+                        .description(description)
+                        .price(price)
+                        .imageUrl(imageUrl)
+                        .published(true)
+                        .build()
+        );
+    }
+
     private static String cdn(String path) {
-        // CDN을 쓰지 않으면 S3 경로로 바꿔도 됩니다.
         return "https://cdn.dongcheolcoding.life" + path;
     }
 }
