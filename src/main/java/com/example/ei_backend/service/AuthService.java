@@ -17,6 +17,7 @@ import com.example.ei_backend.exception.ErrorCode;
 import com.example.ei_backend.exception.NotFoundException;
 import com.example.ei_backend.mapper.UserMapper;
 import com.example.ei_backend.repository.EmailVerificationRepository;
+import com.example.ei_backend.repository.PaymentRepository;
 import com.example.ei_backend.repository.RefreshTokenRepository;
 import com.example.ei_backend.repository.UserRepository;
 import com.example.ei_backend.security.JwtTokenProvider;
@@ -54,6 +55,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final S3Uploader s3Uploader;
     private final ObjectMapper objectMapper;
+    private final PaymentRepository paymentRepository;
 
     @Value("${app.client.host}")
     private String clientHost;
@@ -280,10 +282,22 @@ public class AuthService {
     }
 
     /** 마이페이지 묶음 조회 */
+    @Transactional(readOnly = true)
     public MyPageResponseDto getMyPageInfo(User user) {
         UserDto.Response userDto = userMapper.toResponse(user);
-        List<PaymentDto> paymentDtos = new ArrayList<>();
-        List<CourseProgressDto> courseProgressDtos = new ArrayList<>();
+
+        var paymentDtos = paymentRepository.findApprovedByUserIdWithCourse(user.getId())
+                .stream()
+                .map(p -> PaymentDto.builder()
+                        .courseId(p.getCourse().getId())
+                        .courseName(p.getCourse().getTitle())
+                        .price(p.getAmount())
+                        .paymentDate(p.getPaymentDate())  // LocalDateTime 그대로
+                        .build())
+                .toList();
+
+        // 진행도는 별도 로직이 없으니 일단 빈 리스트 유지
+        List<CourseProgressDto> courseProgressDtos = List.of();
 
         return MyPageResponseDto.builder()
                 .user(userDto)
@@ -291,6 +305,7 @@ public class AuthService {
                 .coursesProgress(courseProgressDtos)
                 .build();
     }
+
 
     /** 문자열 역할 파싱 */
     private UserRole parseRole(String role) {
