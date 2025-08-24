@@ -11,12 +11,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-@Order(20)
+@Order(25) // 코스 시드(@Order(5)) 이후 실행되도록 숫자 크게
 @Slf4j
 public class TestPurchaseSeed implements CommandLineRunner {
 
@@ -26,26 +28,45 @@ public class TestPurchaseSeed implements CommandLineRunner {
     private final PaymentRepository paymentRepository;
     private final PasswordEncoder passwordEncoder;
 
+    // 테스트 회원 정보
+    private static final String TEST_EMAIL = "member3@test.com";
+    private static final String TEST_NAME  = "결제회원3";
+    private static final String TEST_PW    = "member123!";
+
+    // 이번에 “모두 결제 상태로 만들” 코스 타이틀
+    private static final List<String> TARGET_TITLES = List.of(
+            "DATA AI",
+            "풀스택",
+            "프론트엔드",
+            "백엔드"
+    );
+
     @Override
     public void run(String... args) {
-        log.info("[Seed] 시작");
+        log.info("[Seed] 결제/수강 시드 시작");
 
-        // 1) 회원 upsert (코스 유무와 무관하게 항상 생성/유지)
-        User member = upsertMember("member3@test.com", "결제회원3", "member123!");
-        log.info("[Seed] member3 존재 확인: id={}", member.getId());
+        // 1) 회원 upsert
+        User member = upsertMember(TEST_EMAIL, TEST_NAME, TEST_PW);
+        log.info("[Seed] 테스트 회원 확인: id={}, email={}", member.getId(), member.getEmail());
 
-        // 2) 코스 upsert (없으면 생성해서 순서 의존 제거)
-        Course course = upsertCourse("동철코딩 백엔드 강의", 990000,
-                "실전 프로젝트 백엔드 강의",
-                "https://my-project-bucket.s3.ap-northeast-2.amazonaws.com/sample.jpg");
-        log.info("[Seed] course 존재 확인: id={}, title={}", course.getId(), course.getTitle());
+        // 2) 대상 코스 조회 (TestDataInitializer가 upsert 했다고 가정)
+        for (String title : TARGET_TITLES) {
+            Optional<Course> oc = courseRepository.findByTitle(title);
+            if (oc.isEmpty()) {
+                log.warn("[Seed] 코스를 찾지 못했습니다. title='{}' (TestDataInitializer 순서/DB 상태 확인 필요)", title);
+                continue;
+            }
+            Course course = oc.get();
+            log.info("[Seed] 코스 확인: id={}, title={}, price={}", course.getId(), course.getTitle(), course.getPrice());
 
-        // 3) 결제 승인 내역 보장
-        ensureApprovedPayment(member, course);
-        // 4) 수강 등록 보장
-        ensureEnrollment(member, course);
+            // 3) 결제 승인 내역 보장
+            ensureApprovedPayment(member, course);
 
-        log.info("✅ 테스트용 결제 완료 MEMBER + 수강 등록 시드 완료");
+            // 4) 수강 등록 보장 (중복 방지)
+            ensureEnrollment(member, course);
+        }
+
+        log.info("✅ 테스트 회원의 4개 코스 결제/수강 상태 보장 완료");
     }
 
     private User upsertMember(String email, String name, String rawPassword) {
@@ -62,48 +83,37 @@ public class TestPurchaseSeed implements CommandLineRunner {
         });
     }
 
-    private Course upsertCourse(String title, int price, String description, String imageUrl) {
-        return courseRepository.findByTitle(title).orElseGet(() -> {
-            Course c = Course.builder()
-                    .title(title)
-                    .description(description)
-                    .price(price)
-                    .imageUrl(imageUrl)
-                    .build();
-            return courseRepository.save(c);
-        });
-    }
-
+    /** 해당 (user, course)에 대해 APPROVED 결제를 멱등 보장 */
     private void ensureApprovedPayment(User user, Course course) {
-        // 중복 시드 방지: TID 기준으로 체크
+        // 멱등용 고정 TID (userId-courseId 조합)
         String seedTid = "SEED-TID-" + user.getId() + "-" + course.getId();
         if (paymentRepository.existsByTid(seedTid)) {
-            log.info("[Seed] 이미 승인 결제가 존재합니다. (tid={})", seedTid);
+            log.info("[Seed] 이미 승인 결제가 존재합니다. tid={}", seedTid);
             return;
         }
 
         Payment payment = Payment.builder()
                 .user(user)
                 .course(course)
-                .orderId("SEED-ORDER-" + UUID.randomUUID())   // ★ NOT NULL + UNIQUE
-                .tid(seedTid)                                  // ★ NOT NULL + UNIQUE
+                .orderId("SEED-ORDER-" + UUID.randomUUID()) // 고유
+                .tid(seedTid)                               // 고유/멱등
                 .amount(course.getPrice())
                 .method(PaymentMethod.KAKAOPAY)
                 .status(PaymentStatus.APPROVED)
-                .paymentDate(LocalDateTime.now())             // ★ NOT NULL
                 .requestedAt(LocalDateTime.now().minusMinutes(1))
+                .paymentDate(LocalDateTime.now())
                 .approvedAt(LocalDateTime.now())
-                // .pgTid(seedTid)  // 선택: 굳이 필요 없으면 생략
                 .build();
 
         paymentRepository.save(payment);
-        log.info("[Seed] 승인 결제 생성 완료 (paymentId={})", payment.getId());
+        log.info("[Seed] 승인 결제 생성 완료: paymentId={}, tid={}", payment.getId(), seedTid);
     }
 
+    /** user_courses의 UNIQUE(user_id, course_id) 제약 존중 + 멱등 보장 */
     private void ensureEnrollment(User user, Course course) {
-        boolean enrolled = userCourseRepository.existsByUserIdAndCourseId(user.getId(), course.getId());
-        if (enrolled) {
-            log.info("[Seed] 이미 수강 등록되어 있습니다. (userId={}, courseId={})", user.getId(), course.getId());
+        boolean exists = userCourseRepository.existsByUserIdAndCourseId(user.getId(), course.getId());
+        if (exists) {
+            log.info("[Seed] 이미 수강 등록되어 있음 (userId={}, courseId={})", user.getId(), course.getId());
             return;
         }
         UserCourse uc = UserCourse.builder()
@@ -112,6 +122,6 @@ public class TestPurchaseSeed implements CommandLineRunner {
                 .registeredAt(LocalDateTime.now())
                 .build();
         userCourseRepository.save(uc);
-        log.info("[Seed] 수강 등록 생성 완료 (userCourseId={})", uc.getId());
+        log.info("[Seed] 수강 등록 생성 완료: userCourseId={}", uc.getId());
     }
 }

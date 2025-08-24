@@ -64,16 +64,19 @@ public class KakaoPayService {
     @Transactional
     public KakaoPayReadyResponseDto ready(Course course, String userEmail) {
         try {
-            log.info(" course title = {}", course.getTitle());
-            log.info(" course price = {}", course.getPrice());
-            log.info(" userEmail = {}", userEmail);
+            var user = userRepository.findByEmail(userEmail)
+                    .orElseThrow(() -> new IllegalStateException("사용자 없음"));
+
+            // ✅ 이미 수강 중이면 Ready 자체를 차단
+            if (userCourseRepository.existsByUserIdAndCourseId(user.getId(), course.getId())) {
+                throw new IllegalStateException("이미 결제(수강)한 코스입니다.");
+            }
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", "SECRET_KEY " + kakaoPaySecretKey);
 
             String orderId = UUID.randomUUID().toString();
-
             String approvalUrlWithOrderId = UriComponentsBuilder
                     .fromHttpUrl(frontSuccessUrl)
                     .queryParam("orderId", orderId)
@@ -94,21 +97,14 @@ public class KakaoPayService {
                     .failUrl(apiBaseUrl + "/api/payment/fail")
                     .build();
 
-            HttpEntity<KakaoPayReadyRequestDto> entity = new HttpEntity<>(request, headers);
-
-            ResponseEntity<String> rawResponse = new RestTemplate().postForEntity(
+            var entity = new HttpEntity<>(request, headers);
+            var rawResponse = new RestTemplate().postForEntity(
                     "https://open-api.kakaopay.com/online/v1/payment/ready",
-                    entity,
-                    String.class
-            );
+                    entity, String.class);
 
-            log.info(" [카카오 응답 원문] {}", rawResponse.getBody());
+            var objectMapper = new ObjectMapper();
+            var res = objectMapper.readValue(rawResponse.getBody(), KakaoPayReadyResponseDto.class);
 
-            ObjectMapper objectMapper = new ObjectMapper();
-            KakaoPayReadyResponseDto res = objectMapper.readValue(
-                    rawResponse.getBody(), KakaoPayReadyResponseDto.class);
-
-            // ✅ Map에 넣던 부분 삭제하고, DB에 보관
             pendingPaymentRepository.save(
                     PendingPayment.builder()
                             .orderId(orderId)
@@ -135,7 +131,6 @@ public class KakaoPayService {
 
     @Transactional
     public String approve(String orderId, String pgToken, String userEmail, Long userId) {
-        // 1) 보류 결제 조회
         PendingPayment pending = pendingPaymentRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new IllegalStateException("주문정보가 없습니다. 다시 시도해 주세요."));
         if (!pending.getUserEmail().equals(userEmail)) {
@@ -145,7 +140,16 @@ public class KakaoPayService {
             return "{\"message\":\"already approved\"}";
         }
 
-        // 2) 카카오 승인 호출 (DTO로 수신)
+        // ✅ 승인 호출 직전, 다시 보유 여부 점검
+        var user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new IllegalStateException("사용자 없음"));
+        var course = courseRepository.findById(pending.getCourseId())
+                .orElseThrow(() -> new IllegalStateException("코스 없음"));
+
+        if (userCourseRepository.existsByUserIdAndCourseId(user.getId(), course.getId())) {
+            throw new IllegalStateException("이미 결제(수강)한 코스입니다.");
+        }
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("Authorization", "SECRET_KEY " + kakaoPaySecretKey);
@@ -158,19 +162,17 @@ public class KakaoPayService {
                 .pgToken(pgToken)
                 .build();
 
-        ResponseEntity<KakaoPayApproveResponseDto> resp = new RestTemplate().postForEntity(
+        var resp = new RestTemplate().postForEntity(
                 "https://open-api.kakaopay.com/online/v1/payment/approve",
                 new HttpEntity<>(req, headers),
                 KakaoPayApproveResponseDto.class
         );
-
-        KakaoPayApproveResponseDto body = Optional.ofNullable(resp.getBody())
+        var body = Optional.ofNullable(resp.getBody())
                 .orElseThrow(() -> new IllegalStateException("카카오 승인 응답이 비어있습니다."));
         if (!resp.getStatusCode().is2xxSuccessful()) {
             throw new IllegalStateException("카카오 승인 실패: " + resp.getStatusCode());
         }
 
-        // 3) 금액/시간 검증
         int approvedAmount = body.getAmount().getTotal();
         if (approvedAmount != pending.getAmount()) {
             throw new IllegalStateException("금액 불일치");
@@ -178,12 +180,7 @@ public class KakaoPayService {
         LocalDateTime approvedAt = parseKakaoTime(body.getApprovedAt());
         log.info("[KakaoPay][APPROVE] approved_at(raw)={}", body.getApprovedAt());
 
-        // 4) 수강 등록 멱등
-        var user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new IllegalStateException("사용자 없음"));
-        var course = courseRepository.findById(pending.getCourseId())
-                .orElseThrow(() -> new IllegalStateException("코스 없음"));
-
+        // 수강 등록(멱등)
         if (!userCourseRepository.existsByUserIdAndCourseId(user.getId(), course.getId())) {
             userCourseRepository.save(UserCourse.builder()
                     .user(user)
@@ -192,7 +189,6 @@ public class KakaoPayService {
                     .build());
         }
 
-        // 5) Payment 저장
         if (!paymentRepository.existsByTid(pending.getTid())) {
             Payment payment = Payment.builder()
                     .orderId(orderId)
@@ -203,26 +199,23 @@ public class KakaoPayService {
                     .amount(approvedAmount)
                     .method(PaymentMethod.KAKAOPAY)
                     .status(PaymentStatus.APPROVED)
-                    .paymentDate(approvedAt)              // 결제일(표시용)
-                    .approvedAt(approvedAt)               //  승인일도 저장
+                    .paymentDate(approvedAt)
+                    .approvedAt(approvedAt)
                     .build();
             paymentRepository.save(payment);
         }
 
-        // 6) 상태 변경
         pending.setStatus(PaymentStatus.APPROVED);
-
-        // 7) 필요하면 프론트에 넘길 DTO를 만들어 반환해도 됨.
         return "{\"message\":\"approved\",\"tid\":\"" + body.getTid() + "\"}";
     }
 
     private LocalDateTime parseKakaoTime(String ts) {
-        if (ts == null || ts.isBlank()) return LocalDateTime.now();
+        if (ts == null || ts.isBlank()) return LocalDateTime.now(KST);
         try {
-            // 1) '...+09:00' 또는 '...Z' 형태
+            // '2025-08-24T04:00:53+09:00' 같은 오프셋 포함 문자열
             return OffsetDateTime.parse(ts).atZoneSameInstant(KST).toLocalDateTime();
         } catch (DateTimeParseException e) {
-            // 2) 'yyyy-MM-ddTHH:mm:ss' (오프셋 없음)
+            // '2025-08-24T04:00:53' 같이 오프셋 없는 문자열
             return LocalDateTime.parse(ts, ISO_LOCAL);
         }
     }
