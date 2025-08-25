@@ -14,6 +14,7 @@ public enum ErrorCode {
     SERVER_ERROR("E500", HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
     INVALID_ROLE("E400", HttpStatus.BAD_REQUEST, "유효하지 않은 사용자 역할입니다."),
     CONFLICT("E409", HttpStatus.CONFLICT, "리소스 충돌"),
+    DATABASE_CONSTRAINT_VIOLATION("E409_DB", HttpStatus.BAD_REQUEST, "데이터 무결성 위반"),
 
     // 회원/인증
     EMAIL_ALREADY_EXISTS("U409", HttpStatus.CONFLICT, "이미 가입된 이메일입니다."),
@@ -23,6 +24,7 @@ public enum ErrorCode {
     USER_NOT_FOUND("U404", HttpStatus.NOT_FOUND, "존재하지 않는 사용자"),
     INVALID_CREDENTIALS("U401", HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 잘못되었습니다."),
     PROFILE_IMAGE_NOT_FOUND("U404", HttpStatus.NOT_FOUND, "프로필 이미지가 없습니다."),
+
 
     // 강의 / 결제
     COURSE_NOT_FOUND("C404", HttpStatus.NOT_FOUND, "강의를 찾을 수 없습니다."),
