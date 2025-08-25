@@ -129,9 +129,16 @@
           base-path: /actuator
           exposure:
             include: health
+
       endpoint:
         health:
           show-details: always
+          probes:
+            enabled: true
+
+        web:
+          exposure:
+            include: health,info
 
     kakaopay:
       api:
