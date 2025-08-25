@@ -53,11 +53,11 @@ public class AuthController {
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
 
-    @Value("${app.front.success-url:https://dongcheolcoding.life/account/kakaoauth}")
-    private String successUrl;
+    @Value("${app.front.email.success-url:https://dongcheolcoding.life/auth/verify-success}")
+    private String emailVerifySuccessUrl;
 
-    @Value("${app.front.fail-url:https://dongcheolcoding.life/auth/verify-fail}")
-    private String failUrl;
+    @Value("${app.front.email.fail-url:https://dongcheolcoding.life/auth/verify-fail}")
+    private String emailVerifyFailUrl;
 
     /** 배포에선 환경변수(COOKIE_DOMAIN)로 주입 추천, 로컬은 빈 값 */
     @Value("${app.cookie.root-domain:}")
@@ -112,8 +112,8 @@ public class AuthController {
     })
     @GetMapping("/verify")
     public void verifyByEmailLink(
-            @Parameter(description = "이메일", example = "user@test.com") @RequestParam String email,
-            @Parameter(description = "인증 코드", example = "XPN59F") @RequestParam String code,
+            @RequestParam String email,
+            @RequestParam String code,
             HttpServletRequest req,
             HttpServletResponse res
     ) throws IOException {
@@ -131,14 +131,17 @@ public class AuthController {
             boolean https = isHttps(req);
             String cookieDomain = resolveCookieDomain(req);
 
-            ResponseCookie atCookie = CookieUtils.makeCookieSeconds("AT", accessToken, cookieDomain, COOKIE_PATH, 1800, https);
-            ResponseCookie rtCookie = CookieUtils.makeRefreshCookie("RT", refreshToken, cookieDomain, COOKIE_PATH, cookieMaxDays, https);
+            ResponseCookie atCookie = CookieUtils.makeCookieSeconds("AT", accessToken, cookieDomain, "/", 1800, https);
+            ResponseCookie rtCookie = CookieUtils.makeRefreshCookie("RT", refreshToken, cookieDomain, "/", cookieMaxDays, https);
 
             res.addHeader(HttpHeaders.SET_COOKIE, atCookie.toString());
             res.addHeader(HttpHeaders.SET_COOKIE, rtCookie.toString());
-            res.sendRedirect(successUrl);
+
+            //  이메일 인증 전용 성공 페이지로 이동
+            res.sendRedirect(emailVerifySuccessUrl);
         } catch (CustomException ex) {
-            res.sendRedirect(failUrl + "?reason=" + ex.getErrorCode().name());
+            //  이메일 인증 전용 실패 페이지로 이동
+            res.sendRedirect(emailVerifyFailUrl + "?reason=" + ex.getErrorCode().name());
         }
     }
 
