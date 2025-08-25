@@ -2,6 +2,7 @@ package com.example.ei_backend.service;
 
 import com.example.ei_backend.aws.S3Uploader;
 import com.example.ei_backend.domain.dto.CourseDto;
+import com.example.ei_backend.domain.dto.CourseProgressDto;
 import com.example.ei_backend.domain.dto.CoursePurchasePreviewDto;
 import com.example.ei_backend.domain.entity.Course;
 import com.example.ei_backend.domain.entity.UserCourse;
@@ -10,6 +11,7 @@ import com.example.ei_backend.repository.CourseRepository;
 import com.example.ei_backend.repository.LectureRepository;
 import com.example.ei_backend.repository.UserCourseRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +30,10 @@ public class CourseService {
     private final UserCourseRepository userCourseRepository;
     private final S3Uploader s3Uploader;
     private final LectureRepository lectureRepository;
+    private final CourseProgressService courseProgressService;
+
+    @Value("${app.progress.complete-threshold:90.0}")
+    private double completeThreshold;
 
     @Transactional
     public CourseDto.Response createProduct(CourseDto.CreateRequest request) throws IOException {
@@ -101,7 +107,7 @@ public class CourseService {
         return toSummary(course);
     }
 
-    /** 3) 내 코스 목록 (수강 중) */
+    /** 내 코스 목록 (수강 중) - 진행률: CourseProgressService 기반 */
     @Transactional(readOnly = true)
     public CourseDto.Page<CourseDto.MyCourseItem> findMyCourses(Long userId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
@@ -111,18 +117,21 @@ public class CourseService {
                 .map(uc -> {
                     var c = uc.getCourse();
                     Long courseId = c.getId();
-                    int total = (int) lectureRepository.countByCourseId(courseId);
 
-                    double progressRatio = uc.getProgress() / 100.0; // 0.0 ~ 1.0
-                    int completed = (int) Math.round(progressRatio * Math.max(total, 1));
+                    // ✅ 새 진행률 로직 (코스 전체 기준)
+                    double percent = courseProgressService.getCourseProgressPercent(userId, courseId);
+                    var cnt = courseProgressService.getProgressCount(userId, courseId);
 
                     return CourseDto.MyCourseItem.builder()
                             .courseId(courseId)
                             .courseTitle(c.getTitle())
                             .imageUrl(c.getImageUrl())
-                            .progress(progressRatio)
-                            .completedCount(completed)
-                            .totalCount(total)
+                            .progress(CourseProgressDto.of(
+                                    percent,
+                                    cnt.completedLectures(),
+                                    cnt.totalLectures(),
+                                    completeThreshold
+                            ))
                             .build();
                 })
                 .toList();

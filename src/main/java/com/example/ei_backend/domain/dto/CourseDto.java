@@ -61,9 +61,9 @@ public class CourseDto {
         private Long courseId;
         private String courseTitle;
         private String imageUrl;
-        private double progress;     // 0.0~1.0
         private int completedCount;
         private int totalCount;
+        private CourseProgressDto progress;
     }
 
     // 심플한 페이지 래퍼 (ApiResponse 안에 또 Page 쓰는 게 싫다면 이렇게)
