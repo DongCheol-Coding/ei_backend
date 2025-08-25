@@ -54,6 +54,9 @@ public class KakaoPayService {
     @Value("${kakaopay.api.cid}")
     private String cid;
 
+    @Value("${app.api.base-url}")
+    private String apiBaseUrl;
+
     @PostConstruct
     void logStartup() {
         var p = frontProps.getPayment();
@@ -78,42 +81,50 @@ public class KakaoPayService {
                 throw new IllegalStateException("이미 결제(수강)한 코스입니다.");
             }
 
-            // (필요 시) 실패 URL만 설정값에서 사용
+            // 1) 성공/실패 URL 로딩 + 검증
+            var successUrl = Optional.ofNullable(frontProps.getPayment().getSuccessUrl())
+                    .orElseThrow(() -> new IllegalStateException("결제 성공 URL 설정이 필요합니다"));
             var failUrl = Optional.ofNullable(frontProps.getPayment().getFailUrl())
                     .orElseThrow(() -> new IllegalStateException("결제 실패 URL 설정이 필요합니다"));
-            if (!isLocalUrl(failUrl) && !failUrl.startsWith("https://")) {
-                throw new IllegalStateException("HTTPS 결제 실패 URL이 필요합니다");
+
+            boolean local = isLocalUrl(successUrl) && isLocalUrl(failUrl);
+            if (!local && (!successUrl.startsWith("https://") || !failUrl.startsWith("https://"))) {
+                throw new IllegalStateException("HTTPS 결제 성공/실패 URL이 필요합니다");
             }
 
-            //  여기서 orderId 먼저 생성
+            // 2) 주문ID
             String orderId = UUID.randomUUID().toString();
 
-            //  성공 콜백은 백엔드로 (orderId를 쿼리에 붙임)
+            // 3) 승인 성공 콜백(프론트 페이지, 카카오가 pg_token 자동 부착)
             String approvalUrlWithOrderId = UriComponentsBuilder
-                    .fromUriString("https://api.dongcheolcoding.life/api/payment/kakaopay/callback/success")
+                    .fromUriString(successUrl)
                     .queryParam("orderId", orderId)
                     .build(true)
                     .toUriString();
 
-            // 취소/실패 URL은 안전하게 조립
+            // 4) 취소/실패 URL (사유+주문ID)
             String cancelUrl = UriComponentsBuilder.fromUriString(failUrl)
                     .queryParam("reason", "cancelled")
+                    .queryParam("orderId", orderId)
                     .build(true)
                     .toUriString();
             String failUrlWithReason = UriComponentsBuilder.fromUriString(failUrl)
                     .queryParam("reason", "failed")
+                    .queryParam("orderId", orderId)
                     .build(true)
                     .toUriString();
 
+            // 5) 헤더
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "SECRET_KEY " + kakaoPaySecretKey);
             headers.setAccept(java.util.List.of(MediaType.APPLICATION_JSON));
+            headers.set("Authorization", "SECRET_KEY " + kakaoPaySecretKey);
 
+            // 6) 요청 바디
             String itemName = Optional.ofNullable(course.getTitle()).orElse("Course");
             if (itemName.length() > 100) itemName = itemName.substring(0, 100);
 
-            var request = KakaoPayReadyRequestDto.builder()
+            var readyReq = KakaoPayReadyRequestDto.builder()
                     .cid(cid)
                     .partnerOrderId(orderId)
                     .partnerUserId(userEmail)
@@ -122,12 +133,12 @@ public class KakaoPayService {
                     .totalAmount(course.getPrice())
                     .taxFreeAmount(0)
                     .vatAmount(course.getPrice() / 10)
-                    .approvalUrl(approvalUrlWithOrderId)     //  백엔드 콜백
+                    .approvalUrl(approvalUrlWithOrderId) // ✅ 프론트 콜백
                     .cancelUrl(cancelUrl)
                     .failUrl(failUrlWithReason)
                     .build();
 
-            var entity = new HttpEntity<>(request, headers);
+            var entity = new HttpEntity<>(readyReq, headers);
             var rawResponse = restTemplate.postForEntity(
                     "https://open-api.kakaopay.com/online/v1/payment/ready",
                     entity, String.class);
@@ -150,6 +161,7 @@ public class KakaoPayService {
                             .build()
             );
 
+            log.info("[KAKAO][READY] OK orderId={}, tid={}, redirect={}", orderId, res.getTid(), res.getNextRedirectPcUrl());
             return res;
 
         } catch (Exception e) {
@@ -282,7 +294,10 @@ public class KakaoPayService {
 
             return LocalDateTime.parse(ts, ISO_LOCAL);
         }
+
+
     }
+
 
 
 }

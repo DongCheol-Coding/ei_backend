@@ -116,19 +116,14 @@ public class PaymentController {
     })
 
     @PostMapping("/approve")
-// @GetMapping("/approve")  // 프론트가 GET으로 호출한다면 이걸로 교체
-    public ResponseEntity<ApiResponse<String>> approvePayment(
-            @RequestParam("orderId") String orderId,
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<String> approve(
+            @RequestParam String orderId,
             @RequestParam("pg_token") String pgToken,
-            @AuthenticationPrincipal UserPrincipal me
+            @AuthenticationPrincipal UserPrincipal principal
     ) {
-        String result = kakaoPayService.approve(
-                orderId,
-                pgToken,
-                me.getUsername(),   // = 이메일(네 UserPrincipal이 이메일을 username으로 쓰는 구조면)
-                me.getUserId()      // Long userId
-        );
-        return ResponseEntity.ok(ApiResponse.ok(result));
+        String result = kakaoPayService.approve(orderId, pgToken, principal.getUsername(), principal.getUserId());
+        return ResponseEntity.ok(result);
     }
 
 
@@ -225,23 +220,23 @@ public class PaymentController {
 
         return ResponseEntity.ok(ApiResponse.ok(dtoList));
     }
-    @GetMapping("/kakaopay/callback/success")
-    @PermitAll
-    public void kakaoSuccessCallback(@RequestParam String orderId,
-                                     @RequestParam("pg_token") String pgToken,
-                                     HttpServletResponse res) throws IOException {
-        try {
-            var pending = pendingPaymentRepository.findByOrderId(orderId)
-                    .orElseThrow(() -> new IllegalStateException("주문정보 없음"));
-            log.info("[KakaoPay][CALLBACK] orderId={}, pg_token={}", orderId, pgToken); // ✅
-            kakaoPayService.approve(orderId, pgToken, pending.getUserEmail(), null);
-
-            String base = frontProps.getBaseUrl();
-            res.sendRedirect(base + "/course/kakaopay/success?orderId=" + orderId);
-        } catch (Exception e) {
-            log.warn("[KakaoPay][CALLBACK][FAIL] orderId={}, err={}", orderId, e.getMessage()); // ✅
-            String base = frontProps.getBaseUrl();
-            res.sendRedirect(base + "/course/kakaopay/fail?orderId=" + orderId);
-        }
-    }
+//    @GetMapping("/kakaopay/callback/success")
+//    @PermitAll
+//    public void kakaoSuccessCallback(@RequestParam String orderId,
+//                                     @RequestParam("pg_token") String pgToken,
+//                                     HttpServletResponse res) throws IOException {
+//        try {
+//            var pending = pendingPaymentRepository.findByOrderId(orderId)
+//                    .orElseThrow(() -> new IllegalStateException("주문정보 없음"));
+//            log.info("[KakaoPay][CALLBACK] orderId={}, pg_token={}", orderId, pgToken); // ✅
+//            kakaoPayService.approve(orderId, pgToken, pending.getUserEmail(), null);
+//
+//            String base = frontProps.getBaseUrl();
+//            res.sendRedirect(base + "/course/kakaopay/success?orderId=" + orderId);
+//        } catch (Exception e) {
+//            log.warn("[KakaoPay][CALLBACK][FAIL] orderId={}, err={}", orderId, e.getMessage()); // ✅
+//            String base = frontProps.getBaseUrl();
+//            res.sendRedirect(base + "/course/kakaopay/fail?orderId=" + orderId);
+//        }
+//    }
 }
