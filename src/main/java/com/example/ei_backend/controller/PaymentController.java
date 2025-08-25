@@ -8,9 +8,11 @@ import com.example.ei_backend.domain.entity.Course;
 import com.example.ei_backend.exception.ErrorCode;
 import com.example.ei_backend.mapper.PaymentMapper;
 import com.example.ei_backend.repository.PaymentRepository;
+import com.example.ei_backend.repository.PendingPaymentRepository;
 import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.CourseService;
 import com.example.ei_backend.service.KakaoPayService;
+import com.example.ei_backend.util.AppFrontProperties;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -18,19 +20,24 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.security.PermitAll;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.List;
 
 @Tag(name = "Payment", description = "카카오페이 결제 준비/승인 및 취소/실패 콜백")
 @RestController
 @RequiredArgsConstructor
+@Slf4j
 @RequestMapping("/api/payment")
 @SecurityRequirement(name = "accessTokenCookie") // 쿠키 AT 인증 사용 시
 // @SecurityRequirement(name = "bearerAuth")     // Bearer 사용 시 교체
@@ -40,6 +47,8 @@ public class PaymentController {
     private final CourseService courseService;
     private final PaymentRepository paymentRepository;
     private final PaymentMapper paymentMapper;
+    private final PendingPaymentRepository pendingPaymentRepository;
+    private final AppFrontProperties frontProps;
 
     /** 1) 결제 준비 */
     @Operation(
@@ -63,17 +72,24 @@ public class PaymentController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "코스 없음")
     })
+
     @PostMapping("/ready")
     public ResponseEntity<ApiResponse<String>> createPayment(
-            @Parameter(description = "결제할 코스 ID", example = "1")
             @RequestParam Long courseId,
-            @Parameter(hidden = true)
-            @AuthenticationPrincipal UserPrincipal userPrincipal
+            @AuthenticationPrincipal UserPrincipal user,
+            @RequestHeader(value = "User-Agent", required = false) String ua
     ) {
-        String userEmail = userPrincipal.getUsername();
-        Course course = courseService.findById(courseId); // 코스 조회 실패 시 예외 처리 가정
-        KakaoPayReadyResponseDto ready = kakaoPayService.ready(course, userEmail);
-        return ResponseEntity.ok(ApiResponse.ok(ready.getNextRedirectPcUrl()));
+        String email = user.getUsername();
+        Course course = courseService.findById(courseId);
+
+        KakaoPayReadyResponseDto ready = kakaoPayService.ready(course, email);
+
+        boolean isMobile = ua != null && ua.toLowerCase().matches(".*(iphone|ipad|ipod|android).*");
+        String redirectUrl = isMobile
+                ? (ready.getNextRedirectAppUrl() != null ? ready.getNextRedirectAppUrl() : ready.getNextRedirectMobileUrl())
+                : ready.getNextRedirectPcUrl();
+
+        return ResponseEntity.ok(ApiResponse.ok(redirectUrl));
     }
 
     /** 2) 결제 승인 (카카오 콜백) */
@@ -208,5 +224,25 @@ public class PaymentController {
                 .toList();
 
         return ResponseEntity.ok(ApiResponse.ok(dtoList));
+    }
+
+    @GetMapping("/kakaopay/callback/success")
+    @PermitAll
+    public void kakaoSuccessCallback(
+            @RequestParam String orderId,
+            @RequestParam("pg_token") String pgToken,
+            HttpServletResponse res
+    ) throws java.io.IOException {
+        try {
+            var pending = pendingPaymentRepository.findByOrderId(orderId)
+                    .orElseThrow(() -> new IllegalStateException("주문정보 없음"));
+            kakaoPayService.approve(orderId, pgToken, pending.getUserEmail(), null);
+
+            String base = frontProps.getBaseUrl();
+            res.sendRedirect(base + "/course/kakaopay/success?orderId=" + orderId);
+        } catch (Exception e) {
+            String base = frontProps.getBaseUrl();
+            res.sendRedirect(base + "/course/kakaopay/fail?orderId=" + orderId);
+        }
     }
 }
