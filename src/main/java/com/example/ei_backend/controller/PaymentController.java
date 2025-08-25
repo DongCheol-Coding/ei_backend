@@ -225,22 +225,21 @@ public class PaymentController {
 
         return ResponseEntity.ok(ApiResponse.ok(dtoList));
     }
-
     @GetMapping("/kakaopay/callback/success")
     @PermitAll
-    public void kakaoSuccessCallback(
-            @RequestParam String orderId,
-            @RequestParam("pg_token") String pgToken,
-            HttpServletResponse res
-    ) throws java.io.IOException {
+    public void kakaoSuccessCallback(@RequestParam String orderId,
+                                     @RequestParam("pg_token") String pgToken,
+                                     HttpServletResponse res) throws IOException {
         try {
             var pending = pendingPaymentRepository.findByOrderId(orderId)
                     .orElseThrow(() -> new IllegalStateException("주문정보 없음"));
+            log.info("[KakaoPay][CALLBACK] orderId={}, pg_token={}", orderId, pgToken); // ✅
             kakaoPayService.approve(orderId, pgToken, pending.getUserEmail(), null);
 
             String base = frontProps.getBaseUrl();
             res.sendRedirect(base + "/course/kakaopay/success?orderId=" + orderId);
         } catch (Exception e) {
+            log.warn("[KakaoPay][CALLBACK][FAIL] orderId={}, err={}", orderId, e.getMessage()); // ✅
             String base = frontProps.getBaseUrl();
             res.sendRedirect(base + "/course/kakaopay/fail?orderId=" + orderId);
         }
