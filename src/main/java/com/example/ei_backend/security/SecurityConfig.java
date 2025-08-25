@@ -89,7 +89,10 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/.well-known/**",
                                 "/ws-chat", "/ws-chat/**", "/ws-chat-sockjs", "/ws-chat-sockjs/**",
-                                "/api/course/{courseId}/preview"
+                                "/api/course/{courseId}/preview",
+                                "/actuator/health",
+                                "/actuator/health/**",
+                                "/actuator/info"
 
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/course", "/api/course/").permitAll()
