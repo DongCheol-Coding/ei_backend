@@ -16,6 +16,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -54,11 +55,17 @@ public class KakaoPayService {
     private String cid;
 
     @PostConstruct
-    void logPaymentUrls() {
+    void logStartup() {
         var p = frontProps.getPayment();
         log.info("[PAYMENT URLS] successUrl={}, failUrl={}",
                 p != null ? p.getSuccessUrl() : null,
                 p != null ? p.getFailUrl() : null);
+
+        log.info("[KAKAO] cid={}, secretKeyPrefix={}",
+                cid,
+                kakaoPaySecretKey != null && kakaoPaySecretKey.length() >= 6
+                        ? kakaoPaySecretKey.substring(0, 6) + "****"
+                        : "null");
     }
 
     @Transactional
@@ -159,6 +166,7 @@ public class KakaoPayService {
             throw new IllegalStateException("주문 소유자가 아닙니다.");
         }
         if (pending.getStatus() == PaymentStatus.APPROVED) {
+            log.info("[KakaoPay][APPROVE] already approved: orderId={}, tid={}", orderId, pending.getTid());
             return "{\"message\":\"already approved\"}";
         }
 
@@ -172,8 +180,10 @@ public class KakaoPayService {
             throw new IllegalStateException("이미 결제(수강)한 코스입니다.");
         }
 
+        // --- 카카오 승인 호출 ---
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(java.util.List.of(MediaType.APPLICATION_JSON));
         headers.set("Authorization", "SECRET_KEY " + kakaoPaySecretKey);
 
         KakaoPayApproveRequestDto req = KakaoPayApproveRequestDto.builder()
@@ -184,28 +194,43 @@ public class KakaoPayService {
                 .pgToken(pgToken)
                 .build();
 
-        var resp = restTemplate.postForEntity(
-                "https://open-api.kakaopay.com/online/v1/payment/approve",
-                new HttpEntity<>(req, headers),
-                KakaoPayApproveResponseDto.class
-        );
+        KakaoPayApproveResponseDto body;
+        try {
+            var resp = restTemplate.postForEntity(
+                    "https://open-api.kakaopay.com/online/v1/payment/approve",
+                    new HttpEntity<>(req, headers),
+                    KakaoPayApproveResponseDto.class
+            );
 
-        // 응답 방어
-        if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
-            throw new IllegalStateException("카카오 승인 응답이 비정상입니다: " + resp.getStatusCode());
+            if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
+                log.error("[KakaoPay][APPROVE][BAD-RESP] status={}, body={}", resp.getStatusCode(), resp.getBody());
+                throw new IllegalStateException("카카오 승인 응답이 비정상입니다: " + resp.getStatusCode());
+            }
+            body = resp.getBody();
+
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            log.error("[KakaoPay][APPROVE][HTTP-ERR] orderId={}, status={}, body={}",
+                    orderId, e.getStatusCode(), e.getResponseBodyAsString());
+            try { markPendingFailed(orderId); } catch (Exception ignore) {}
+            throw new IllegalStateException("카카오 승인 실패: " + e.getStatusCode(), e);
+
+        } catch (Exception e) {
+            log.error("[KakaoPay][APPROVE][ERR] orderId={}, err={}", orderId, e.toString(), e);
+            try { markPendingFailed(orderId); } catch (Exception ignore) {}
+            throw e;
         }
-        var body = resp.getBody();
 
+        // --- 응답 검증 & 저장 ---
         if (body.getAmount() == null) {
             throw new IllegalStateException("승인 응답에 amount가 없습니다.");
         }
-
         int approvedAmount = body.getAmount().getTotal();
         if (approvedAmount != pending.getAmount()) {
-            throw new IllegalStateException("금액 불일치");
+            throw new IllegalStateException("금액 불일치: approved=" + approvedAmount + ", pending=" + pending.getAmount());
         }
+
         LocalDateTime approvedAt = parseKakaoTime(body.getApprovedAt());
-        log.info("[KakaoPay][APPROVE] approved_at(raw)={}", body.getApprovedAt());
+        log.info("[KakaoPay][APPROVE] OK orderId={}, tid={}, approved_at={}", orderId, body.getTid(), body.getApprovedAt());
 
         // 수강 등록(멱등)
         if (!userCourseRepository.existsByUserIdAndCourseId(user.getId(), course.getId())) {
@@ -216,6 +241,7 @@ public class KakaoPayService {
                     .build());
         }
 
+        // 결제 저장(멱등)
         if (!paymentRepository.existsByTid(pending.getTid())) {
             Payment payment = Payment.builder()
                     .orderId(orderId)
@@ -236,18 +262,27 @@ public class KakaoPayService {
         return "{\"message\":\"approved\",\"tid\":\"" + body.getTid() + "\"}";
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markPendingFailed(String orderId) {
+        pendingPaymentRepository.findByOrderId(orderId).ifPresent(p -> p.setStatus(PaymentStatus.FAILED));
+    }
+
+
+    private boolean isLocalUrl(String url) {
+        return url != null &&
+                (url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1"));
+    }
+
     private LocalDateTime parseKakaoTime(String ts) {
         if (ts == null || ts.isBlank()) return LocalDateTime.now(KST);
         try {
-            // '2025-08-24T04:00:53+09:00' 같은 오프셋 포함 문자열
+
             return OffsetDateTime.parse(ts).atZoneSameInstant(KST).toLocalDateTime();
         } catch (DateTimeParseException e) {
-            // '2025-08-24T04:00:53' 같이 오프셋 없는 문자열
+
             return LocalDateTime.parse(ts, ISO_LOCAL);
         }
     }
 
-    private boolean isLocalUrl(String url) {
-        return url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1");
-    }
+
 }
