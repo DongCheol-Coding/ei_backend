@@ -78,6 +78,9 @@
         same-site: ${COOKIE_SAMESITE:Lax}
         max-days: 14
 
+      api:
+        base-url: https://api.dongcheolcoding.life
+
       front:
         base-url: https://dongcheolcoding.life
         email:
