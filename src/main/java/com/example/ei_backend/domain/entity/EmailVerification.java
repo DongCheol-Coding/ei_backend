@@ -18,11 +18,13 @@ public class EmailVerification {
     @Column(name = "email_verification_id")
     private Long id;
 
+    @Column(nullable = false)
     private String email;
 
+    @Column(nullable = false)
     private String code;
 
-    @Column(name = "expiration_time")
+    @Column(name="expiration_time", nullable = false)
     private LocalDateTime expirationTime;
 
     @Builder.Default
@@ -33,7 +35,6 @@ public class EmailVerification {
     @Column(name = "request_data")
     private String requestData;
 
-    @Builder
     public EmailVerification(String email, String code, LocalDateTime expirationTime) {
         this.email = email;
         this.code = code;

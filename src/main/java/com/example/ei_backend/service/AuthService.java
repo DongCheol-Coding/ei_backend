@@ -28,6 +28,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.lang.Nullable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -98,31 +99,40 @@ public class AuthService {
     /** 이메일 + 코드로 최종 가입 */
     @Transactional
     public UserDto.Response verifyAndSignup(String email, String code) {
-        EmailVerification verification = emailVerificationRepository
-                .findTopByEmailOrderByExpirationTimeDesc(email)
+        // 1) 이메일+코드+만료안됨 으로 직접 조회 (오래된 링크/다중코드 이슈 제거)
+        EmailVerification v = emailVerificationRepository
+                .findByEmailAndCodeAndExpirationTimeAfter(email, code, LocalDateTime.now())
                 .orElseThrow(() -> new CustomException(
-                        ErrorCode.VERIFICATION_NOT_FOUND,
-                        "존재하지 않은 코드입니다."
-                ));
+                        ErrorCode.INVALID_VERIFY_CODE, "코드가 없거나 만료되었습니다."));
 
-        // 이미 인증된 경우
-        if (verification.isVerified()) {
+        // 2) 이미 인증됐으면 종료
+        if (v.isVerified()) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 인증되었습니다.");
         }
 
-        // 코드 불일치
-        if (!verification.getCode().equals(code)) {
-            throw new CustomException(ErrorCode.INVALID_VERIFY_CODE, "존재하지 않은 코드입니다.");
+        // 3) 가입 여부 최종 점검 (소셜/이전 가입 등)
+        if (userRepository.existsByEmailAndIsDeletedFalse(email)) {
+            throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
-        // verify() 내부에서 상태 변경 + 예외 처리
-        verification.verify(code);
+        // 4) 상태 변경 (내부에서 verified=true, verifiedAt 등)
+        v.verify(code);
 
-        UserDto.Request dto = extractRequestDto(verification);
-        User user = userMapper.toEntity(dto); // password는 이미 암호화 상태
+        // 5) 사용자 생성/저장
+        UserDto.Request dto = extractRequestDto(v);
+        User user = userMapper.toEntity(dto);   // dto.password는 requestSignup에서 이미 인코딩됨
         user.addRole(UserRole.ROLE_MEMBER);
-        userRepository.save(user);
 
+
+
+        try {
+            userRepository.save(user);
+            userRepository.flush();   // 예외 즉시 표면화
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException(ErrorCode.DATABASE_CONSTRAINT_VIOLATION, "저장 실패(중복/필수값 누락)");
+        }
+
+        // 6) 토큰 발급
         String token = jwtTokenProvider.generateAccessToken(
                 user.getEmail(),
                 user.getRoles().stream().map(Enum::name).toList()
@@ -130,37 +140,28 @@ public class AuthService {
         return UserDto.Response.fromEntity(user, token);
     }
 
+
     /** 코드만으로 최종 가입 (링크 클릭 방식) */
     @Transactional
     public UserDto.Response verifyAndSignup(String code) {
-        EmailVerification verification = emailVerificationRepository.findByCode(code)
-                .orElseThrow(() -> new CustomException(
-                        ErrorCode.INVALID_VERIFY_CODE,
-                        "존재하지 않은 코드입니다."
-                ));
+        var v = emailVerificationRepository
+                .findByCodeAndExpirationTimeAfter(code, LocalDateTime.now()) // 레포지토리 메서드 추가 필요
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_VERIFY_CODE, "코드가 없거나 만료되었습니다."));
 
-        // 이미 인증된 경우
-        if (verification.isVerified()) {
-            throw new CustomException(ErrorCode.CONFLICT, "이미 인증되었습니다.");
-        }
+        if (v.isVerified()) throw new CustomException(ErrorCode.CONFLICT, "이미 인증되었습니다.");
+        if (userRepository.existsByEmailAndIsDeletedFalse(v.getEmail()))
+            throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
 
-        // 코드 불일치 (혹시라도)
-        if (!verification.getCode().equals(code)) {
-            throw new CustomException(ErrorCode.INVALID_VERIFY_CODE, "존재하지 않은 코드입니다.");
-        }
+        v.verify(code);
 
-        verification.verify(code);
-
-        UserDto.Request dto = extractRequestDto(verification);
-        User user = userMapper.toEntity(dto);
-        user.encodePassword(passwordEncoder.encode(user.getPassword()));
+        var dto  = extractRequestDto(v);
+        var user = userMapper.toEntity(dto);   // ⚠️ 재인코딩 금지
         user.addRole(UserRole.ROLE_MEMBER);
-        userRepository.save(user);
+
+        userRepository.saveAndFlush(user);
 
         String token = jwtTokenProvider.generateAccessToken(
-                user.getEmail(),
-                user.getRoles().stream().map(Enum::name).toList()
-        );
+                user.getEmail(), user.getRoles().stream().map(Enum::name).toList());
         return UserDto.Response.fromEntity(user, token);
     }
 

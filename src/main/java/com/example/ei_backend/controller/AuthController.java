@@ -27,6 +27,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -46,6 +47,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Slf4j
 public class AuthController {
 
     private final AuthService authService;
@@ -110,6 +112,7 @@ public class AuthController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된/만료된 코드"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 인증됨")
     })
+
     @GetMapping("/verify")
     public void verifyByEmailLink(
             @RequestParam String email,
@@ -137,11 +140,12 @@ public class AuthController {
             res.addHeader(HttpHeaders.SET_COOKIE, atCookie.toString());
             res.addHeader(HttpHeaders.SET_COOKIE, rtCookie.toString());
 
-            //  이메일 인증 전용 성공 페이지로 이동
             res.sendRedirect(emailVerifySuccessUrl);
         } catch (CustomException ex) {
-            //  이메일 인증 전용 실패 페이지로 이동
             res.sendRedirect(emailVerifyFailUrl + "?reason=" + ex.getErrorCode().name());
+        } catch (RuntimeException ex) {
+             log.error("[VERIFY] unexpected", ex);
+            res.sendRedirect(emailVerifyFailUrl + "?reason=SERVER_ERROR");
         }
     }
 
