@@ -8,6 +8,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Getter
 @Setter
 public class AppFrontProperties {
+
+    private String baseUrl;
+
     private Email email = new Email();
     private Oauth oauth = new Oauth();
     private Payment payment = new Payment();

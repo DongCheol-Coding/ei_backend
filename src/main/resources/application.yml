@@ -79,6 +79,7 @@
         max-days: 14
 
       front:
+        base-url: https://dongcheolcoding.life
         email:
           success-url: https://dongcheolcoding.life/auth/verify-success
           fail-url: https://dongcheolcoding.life/auth/verify-fail
@@ -137,9 +138,9 @@
         cid: TC0ONETIME
         secret:
           key: ${KAKAO_SECRET_KEY}
-        approval-url: https://api.dongcheolcoding.life/api/payment/approve
-        cancel-url: https://api.dongcheolcoding.life/api/payment/cancel
-        fail-url: https://api.dongcheolcoding.life/api/payment/fail
+#        approval-url: https://api.dongcheolcoding.life/api/payment/approve
+#        cancel-url: https://api.dongcheolcoding.life/api/payment/cancel
+#        fail-url: https://api.dongcheolcoding.life/api/payment/fail
 
 
 

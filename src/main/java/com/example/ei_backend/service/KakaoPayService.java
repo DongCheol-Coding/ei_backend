@@ -67,34 +67,28 @@ public class KakaoPayService {
             var user = userRepository.findByEmail(userEmail)
                     .orElseThrow(() -> new IllegalStateException("사용자 없음"));
 
-            // 이미 보유 차단
             if (userCourseRepository.existsByUserIdAndCourseId(user.getId(), course.getId())) {
                 throw new IllegalStateException("이미 결제(수강)한 코스입니다.");
             }
 
-            // 필수 URL 확보
-            var successUrl = Optional.ofNullable(frontProps.getPayment().getSuccessUrl())
-                    .orElseThrow(() -> new IllegalStateException("결제 성공 URL 설정이 필요합니다"));
+            // (필요 시) 실패 URL만 설정값에서 사용
             var failUrl = Optional.ofNullable(frontProps.getPayment().getFailUrl())
                     .orElseThrow(() -> new IllegalStateException("결제 실패 URL 설정이 필요합니다"));
-
-            // 운영은 HTTPS 강제, 로컬만 HTTP 허용
-            boolean localSuccess = isLocalUrl(successUrl);
-            boolean localFail = isLocalUrl(failUrl);
-            if (!(localSuccess && localFail)) {
-                if (!successUrl.startsWith("https://") || !failUrl.startsWith("https://")) {
-                    throw new IllegalStateException("HTTPS 결제 성공/실패 URL이 필요합니다");
-                }
+            if (!isLocalUrl(failUrl) && !failUrl.startsWith("https://")) {
+                throw new IllegalStateException("HTTPS 결제 실패 URL이 필요합니다");
             }
 
+            //  여기서 orderId 먼저 생성
             String orderId = UUID.randomUUID().toString();
+
+            //  성공 콜백은 백엔드로 (orderId를 쿼리에 붙임)
             String approvalUrlWithOrderId = UriComponentsBuilder
-                    .fromUriString(successUrl)
+                    .fromUriString("https://api.dongcheolcoding.life/api/payment/kakaopay/callback/success")
                     .queryParam("orderId", orderId)
                     .build(true)
                     .toUriString();
 
-            // cancel/fail URL은 문자열 더하기 대신 안전하게 조립
+            // 취소/실패 URL은 안전하게 조립
             String cancelUrl = UriComponentsBuilder.fromUriString(failUrl)
                     .queryParam("reason", "cancelled")
                     .build(true)
@@ -109,11 +103,10 @@ public class KakaoPayService {
             headers.set("Authorization", "SECRET_KEY " + kakaoPaySecretKey);
             headers.setAccept(java.util.List.of(MediaType.APPLICATION_JSON));
 
-            // itemName 방어(너무 길면 잘라서 전송)
             String itemName = Optional.ofNullable(course.getTitle()).orElse("Course");
             if (itemName.length() > 100) itemName = itemName.substring(0, 100);
 
-            KakaoPayReadyRequestDto request = KakaoPayReadyRequestDto.builder()
+            var request = KakaoPayReadyRequestDto.builder()
                     .cid(cid)
                     .partnerOrderId(orderId)
                     .partnerUserId(userEmail)
@@ -122,7 +115,7 @@ public class KakaoPayService {
                     .totalAmount(course.getPrice())
                     .taxFreeAmount(0)
                     .vatAmount(course.getPrice() / 10)
-                    .approvalUrl(approvalUrlWithOrderId)
+                    .approvalUrl(approvalUrlWithOrderId)     //  백엔드 콜백
                     .cancelUrl(cancelUrl)
                     .failUrl(failUrlWithReason)
                     .build();
@@ -132,15 +125,12 @@ public class KakaoPayService {
                     "https://open-api.kakaopay.com/online/v1/payment/ready",
                     entity, String.class);
 
-            // 응답 방어
             if (!rawResponse.getStatusCode().is2xxSuccessful() || rawResponse.getBody() == null) {
                 throw new IllegalStateException("카카오 ready 응답이 비정상입니다: " + rawResponse.getStatusCode());
             }
 
             var res = objectMapper.readValue(rawResponse.getBody(), KakaoPayReadyResponseDto.class);
-            if (res.getTid() == null) {
-                throw new IllegalStateException("카카오 ready 응답에 tid가 없습니다.");
-            }
+            if (res.getTid() == null) throw new IllegalStateException("카카오 ready 응답에 tid가 없습니다.");
 
             pendingPaymentRepository.save(
                     PendingPayment.builder()
@@ -155,11 +145,8 @@ public class KakaoPayService {
 
             return res;
 
-        } catch (HttpClientErrorException | HttpServerErrorException e) {
-            log.error("[KAKAO][READY] status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("카카오 API 오류: " + e.getMessage(), e);
         } catch (Exception e) {
-            log.error("[KAKAO][READY] 예상치 못한 에러", e);
+            log.error("[KAKAO][READY] 에러", e);
             throw new RuntimeException("카카오페이 ready 요청 중 오류 발생", e);
         }
     }

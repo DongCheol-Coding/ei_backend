@@ -94,6 +94,7 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/course", "/api/course/").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/payment/kakaopay/callback/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/payment/cancel", "/api/payment/fail").permitAll()
                         // 프로필 이미지는 인증 필수
                         .requestMatchers(HttpMethod.PATCH,  "/api/auth/profile/image").authenticated()
