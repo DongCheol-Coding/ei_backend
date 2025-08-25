@@ -2,8 +2,10 @@ package com.example.ei_backend.controller;
 
 import com.example.ei_backend.config.ApiResponse;
 import com.example.ei_backend.domain.dto.CourseDto;
+import com.example.ei_backend.domain.dto.CourseProgressDto;
 import com.example.ei_backend.domain.dto.CoursePurchasePreviewDto;
 import com.example.ei_backend.security.UserPrincipal;
+import com.example.ei_backend.service.CourseProgressService;
 import com.example.ei_backend.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -13,9 +15,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -30,6 +34,22 @@ import java.util.List;
 public class CourseController {
 
     private final CourseService courseService;
+    private final CourseProgressService courseProgressService;
+
+    @Value("${app.progress.complete-threshold:90.0}")
+    private double completeThreshold;
+
+    @GetMapping("/{courseId}/progress")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<CourseProgressDto> getCourseProgress(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long courseId
+    ) {
+        Long userId = principal.getUserId();
+        double percent = courseProgressService.getCourseProgressPercent(userId, courseId);
+        var cnt = courseProgressService.getProgressCount(userId, courseId);
+        return ApiResponse.ok(CourseProgressDto.of(percent, cnt.completedLectures(), cnt.totalLectures(), completeThreshold));
+    }
 
     @Operation(
             summary = "코스 생성",
