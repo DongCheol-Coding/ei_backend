@@ -8,6 +8,7 @@ import com.example.ei_backend.domain.entity.*;
 import com.example.ei_backend.repository.*;
 import com.example.ei_backend.util.AppFrontProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,19 +53,13 @@ public class KakaoPayService {
     @Value("${kakaopay.api.cid}")
     private String cid;
 
-//    @Value("${app.client.host}")
-//    private String clientHost;
-
-/*
-    @Value("${app.front.payment.success-url:${app.front.success-url:}}")
-    private String paymentSuccessUrl;
-*/
-
-/*
-    @Value("${app.client.host}") // 예: https://api.dongcheolcoding.life
-    private String apiBaseUrl;
-*/
-
+    @PostConstruct
+    void logPaymentUrls() {
+        var p = frontProps.getPayment();
+        log.info("[PAYMENT URLS] successUrl={}, failUrl={}",
+                p != null ? p.getSuccessUrl() : null,
+                p != null ? p.getFailUrl() : null);
+    }
 
     @Transactional
     public KakaoPayReadyResponseDto ready(Course course, String userEmail) {
@@ -79,11 +74,18 @@ public class KakaoPayService {
 
             // 필수 URL 확보
             var successUrl = Optional.ofNullable(frontProps.getPayment().getSuccessUrl())
-                    .filter(u -> u.startsWith("https://"))
-                    .orElseThrow(() -> new IllegalStateException("HTTPS 결제 성공 URL이 필요합니다"));
+                    .orElseThrow(() -> new IllegalStateException("결제 성공 URL 설정이 필요합니다"));
             var failUrl = Optional.ofNullable(frontProps.getPayment().getFailUrl())
-                    .filter(u -> u.startsWith("https://"))
-                    .orElseThrow(() -> new IllegalStateException("HTTPS 결제 실패 URL이 필요합니다"));
+                    .orElseThrow(() -> new IllegalStateException("결제 실패 URL 설정이 필요합니다"));
+
+            // 운영은 HTTPS 강제, 로컬만 HTTP 허용
+            boolean localSuccess = isLocalUrl(successUrl);
+            boolean localFail = isLocalUrl(failUrl);
+            if (!(localSuccess && localFail)) {
+                if (!successUrl.startsWith("https://") || !failUrl.startsWith("https://")) {
+                    throw new IllegalStateException("HTTPS 결제 성공/실패 URL이 필요합니다");
+                }
+            }
 
             String orderId = UUID.randomUUID().toString();
             String approvalUrlWithOrderId = UriComponentsBuilder
@@ -92,25 +94,37 @@ public class KakaoPayService {
                     .build(true)
                     .toUriString();
 
+            // cancel/fail URL은 문자열 더하기 대신 안전하게 조립
+            String cancelUrl = UriComponentsBuilder.fromUriString(failUrl)
+                    .queryParam("reason", "cancelled")
+                    .build(true)
+                    .toUriString();
+            String failUrlWithReason = UriComponentsBuilder.fromUriString(failUrl)
+                    .queryParam("reason", "failed")
+                    .build(true)
+                    .toUriString();
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", "SECRET_KEY " + kakaoPaySecretKey);
             headers.setAccept(java.util.List.of(MediaType.APPLICATION_JSON));
 
+            // itemName 방어(너무 길면 잘라서 전송)
+            String itemName = Optional.ofNullable(course.getTitle()).orElse("Course");
+            if (itemName.length() > 100) itemName = itemName.substring(0, 100);
+
             KakaoPayReadyRequestDto request = KakaoPayReadyRequestDto.builder()
                     .cid(cid)
                     .partnerOrderId(orderId)
                     .partnerUserId(userEmail)
-                    .itemName(course.getTitle())
+                    .itemName(itemName)
                     .quantity(1)
                     .totalAmount(course.getPrice())
                     .taxFreeAmount(0)
                     .vatAmount(course.getPrice() / 10)
                     .approvalUrl(approvalUrlWithOrderId)
-                    // A안(프론트 직접 이동): 아래 두 줄
-                    .cancelUrl(failUrl + "?reason=cancelled")
-                    .failUrl(failUrl + "?reason=failed")
-                    // B안(API 경유 이동)으로 하려면 위 두 줄 대신 기존처럼 apiBaseUrl + "/api/payment/..." 사용
+                    .cancelUrl(cancelUrl)
+                    .failUrl(failUrlWithReason)
                     .build();
 
             var entity = new HttpEntity<>(request, headers);
@@ -118,7 +132,15 @@ public class KakaoPayService {
                     "https://open-api.kakaopay.com/online/v1/payment/ready",
                     entity, String.class);
 
+            // 응답 방어
+            if (!rawResponse.getStatusCode().is2xxSuccessful() || rawResponse.getBody() == null) {
+                throw new IllegalStateException("카카오 ready 응답이 비정상입니다: " + rawResponse.getStatusCode());
+            }
+
             var res = objectMapper.readValue(rawResponse.getBody(), KakaoPayReadyResponseDto.class);
+            if (res.getTid() == null) {
+                throw new IllegalStateException("카카오 ready 응답에 tid가 없습니다.");
+            }
 
             pendingPaymentRepository.save(
                     PendingPayment.builder()
@@ -153,7 +175,7 @@ public class KakaoPayService {
             return "{\"message\":\"already approved\"}";
         }
 
-        //  승인 호출 직전, 다시 보유 여부 점검
+        // 승인 호출 직전, 다시 보유 여부 점검
         var user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new IllegalStateException("사용자 없음"));
         var course = courseRepository.findById(pending.getCourseId())
@@ -180,10 +202,15 @@ public class KakaoPayService {
                 new HttpEntity<>(req, headers),
                 KakaoPayApproveResponseDto.class
         );
-        var body = Optional.ofNullable(resp.getBody())
-                .orElseThrow(() -> new IllegalStateException("카카오 승인 응답이 비어있습니다."));
-        if (!resp.getStatusCode().is2xxSuccessful()) {
-            throw new IllegalStateException("카카오 승인 실패: " + resp.getStatusCode());
+
+        // 응답 방어
+        if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) {
+            throw new IllegalStateException("카카오 승인 응답이 비정상입니다: " + resp.getStatusCode());
+        }
+        var body = resp.getBody();
+
+        if (body.getAmount() == null) {
+            throw new IllegalStateException("승인 응답에 amount가 없습니다.");
         }
 
         int approvedAmount = body.getAmount().getTotal();
@@ -232,5 +259,8 @@ public class KakaoPayService {
             return LocalDateTime.parse(ts, ISO_LOCAL);
         }
     }
-}
 
+    private boolean isLocalUrl(String url) {
+        return url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1");
+    }
+}
