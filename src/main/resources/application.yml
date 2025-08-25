@@ -74,9 +74,9 @@
       client:
         host: ${CLIENT_HOST}
       cookie:
-        root-domain: ${COOKIE_DOMAIN:}      # 기본: 빈값(도메인 미지정 = host-only)
-        secure: ${COOKIE_SECURE:false}      # 기본: false (HTTP 로컬)
-        same-site: ${COOKIE_SAMESITE:Lax}   # 기본: Lax (같은 오리진)
+        root-domain: ${COOKIE_DOMAIN:}
+        secure: ${COOKIE_SECURE:false}
+        same-site: ${COOKIE_SAMESITE:Lax}
         max-days: 14
       front:
         success-url: ${FRONT_SUCCESS_URL:https://dongcheolcoding.life/course/kakaopay}
