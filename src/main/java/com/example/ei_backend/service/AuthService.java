@@ -33,6 +33,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -180,6 +181,18 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         user.validatePassword(newPassword, passwordEncoder);
+    }
+
+    @Transactional
+    public void logout(String email, String refreshToken) {
+        if (StringUtils.hasText(email)) {
+            refreshTokenRepository.deleteByEmail(email);
+            return;
+        }
+        if (StringUtils.hasText(refreshToken)) {
+            refreshTokenRepository.deleteByToken(refreshToken);
+        }
+
     }
 
 

@@ -12,7 +12,6 @@
           max-file-size: 200MB
           max-request-size: 200MB
       server:
-        forward-headers-strategy: native
         tomcat:
           max-swallow-size: -1
       security:
@@ -74,23 +73,21 @@
         host: ${CLIENT_HOST}
 
       cookie:
-        root-domain: ${COOKIE_DOMAIN:}     # prod: dongcheolcoding.life, local: 빈 값
-        secure: ${COOKIE_SECURE:false}     # prod: true(HTTPS), local: false
-        same-site: ${COOKIE_SAMESITE:Lax}  # Lax/Strict/None (None이면 secure=true 필수)
-        max-days: 14                       # RT 유효일수
+        root-domain: ${COOKIE_DOMAIN:}
+        secure: ${COOKIE_SECURE:false}
+        same-site: ${COOKIE_SAMESITE:Lax}
+        max-days: 14
 
       front:
         email:
           success-url: https://dongcheolcoding.life/auth/verify-success
           fail-url: https://dongcheolcoding.life/auth/verify-fail
-
-      oauth:
-        success-url: https://dongcheolcoding.life/account/kakaoauth
-        fail-url: https://dongcheolcoding.life/auth/kakao-fail
-
-      payment:
-        success-url: https://dongcheolcoding.life/course/kakaopay/success
-        fail-url: https://dongcheolcoding.life/course/kakaopay/fail
+        oauth:
+          success-url: https://dongcheolcoding.life/account/kakaoauth
+          fail-url: https://dongcheolcoding.life/auth/kakao-fail
+        payment:
+          success-url: https://dongcheolcoding.life/course/kakaopay/success
+          fail-url: https://dongcheolcoding.life/course/kakaopay/fail
 
       cdn-base-url: ${CDN_BASE_URL:https://cdn.dongcheolcoding.life}
 
