@@ -1,5 +1,6 @@
 package com.example.ei_backend.domain.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import lombok.Getter;
@@ -9,6 +10,7 @@ import lombok.Setter;
 @Getter @Setter
 @NoArgsConstructor
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+@JsonIgnoreProperties(ignoreUnknown = true)   // ★예상치 못한 필드 무시
 public class KakaoPayApproveResponseDto {
     private String aid;
     private String tid;
@@ -18,13 +20,18 @@ public class KakaoPayApproveResponseDto {
     private String partnerUserId;
 
     private String itemName;
-    private String paymentMethodType;
+    private String itemCode;
+    private Integer quantity;
 
+    private String paymentMethodType;
     private Amount amount;
-    private String approvedAt; // 예: 2025-08-21T05:05:20Z
+
+    private String createdAt;                 // (옵션) 올 수 있음
+    private String approvedAt;
 
     @Getter @Setter
     @NoArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Amount {
         private int total;
         private int taxFree;
