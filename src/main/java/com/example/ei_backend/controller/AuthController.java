@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -185,16 +186,26 @@ public class AuthController {
     @Operation(summary = "로그아웃", description = "서버측 컨텍스트/세션 정리 및 AT/RT 쿠키 제거")
     @SecurityRequirement(name = "accessTokenCookie")
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(
+    public ResponseEntity<Void> logout(
             HttpServletRequest req,
             HttpServletResponse res,
-            @AuthenticationPrincipal UserPrincipal principal
+            @AuthenticationPrincipal UserPrincipal principal // <- required 제거
     ) {
-        String email = principal.getUsername();
-        authService.logout(email);
-
         boolean https = isHttps(req);
         String cookieDomain = resolveCookieDomain(req);
+
+        String email = (principal != null ? principal.getUsername() : null);
+
+        // RT는 쿠키에서 직접 꺼냄 (AT 만료로 principal==null 대비)
+        String refreshToken = CookieUtils.getCookie(req, "RT")
+                .map(Cookie::getValue)
+                .orElse(null);
+
+        try {
+            authService.logout(email, refreshToken);
+        } catch (Exception e) {
+            log.warn("Best-effort logout failed: {}", e.getMessage());
+        }
 
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.SET_COOKIE, CookieUtils.deleteCookie("AT", cookieDomain, COOKIE_PATH, https).toString());
@@ -204,7 +215,7 @@ public class AuthController {
         SecurityContextHolder.clearContext();
         Optional.ofNullable(req.getSession(false)).ifPresent(HttpSession::invalidate);
 
-        return ResponseEntity.ok().headers(headers).body(ApiResponse.ok(null));
+        return ResponseEntity.noContent().headers(headers).build();
     }
 
     /* ================= 비밀번호 변경 ================= */

@@ -1,8 +1,12 @@
 package com.example.ei_backend.util;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseCookie;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Optional;
 
 public class CookieUtils {
 
@@ -53,5 +57,21 @@ public class CookieUtils {
         }
         return b.build();
     }
+
+    /** 요청에서 특정 이름의 쿠키를 Optional로 반환 (null-safe) */
+    public static Optional<Cookie> getCookie(HttpServletRequest request, String name) {
+        if (request == null || request.getCookies() == null || name == null) {
+            return Optional.empty();
+        }
+        return Arrays.stream(request.getCookies())
+                .filter(c -> name.equals(c.getName()))
+                .findFirst();
+    }
+
+    /** 값이 바로 필요할 때 편의용 (없으면 null) */
+    public static String getCookieValue(HttpServletRequest request, String name) {
+        return getCookie(request, name).map(Cookie::getValue).orElse(null);
+    }
+
 }
 
