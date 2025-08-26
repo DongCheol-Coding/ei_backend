@@ -159,8 +159,15 @@ public class User {
      * 이름 또는 전화번호 일치여부
      */
     public boolean matchesAny(String name, String phoneSuffix) {
-        return (this.name != null && this.name.equals(name))
-                || (this.phone != null && this.phone.endsWith(phoneSuffix));
+        boolean nameMatch = (name != null && !name.isBlank())
+                && this.name != null
+                && this.name.toLowerCase().contains(name.toLowerCase());
+
+        boolean phoneMatch = (phoneSuffix != null && !phoneSuffix.isBlank())
+                && this.phone != null
+                && this.phone.endsWith(phoneSuffix);
+
+        return nameMatch || phoneMatch;
     }
 
     public void updateProfileImage(ProfileImage newImage) {
