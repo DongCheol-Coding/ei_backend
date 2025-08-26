@@ -60,7 +60,7 @@ public class CourseService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public Course findById(Long courseId) {
         return courseRepository.findById(courseId)
                 .orElseThrow(() -> new NotFoundException("course"));
@@ -111,7 +111,7 @@ public class CourseService {
     @Transactional(readOnly = true)
     public CourseDto.Page<CourseDto.MyCourseItem> findMyCourses(Long userId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
-        Page<UserCourse> result = userCourseRepository.findByUser_Id(userId, pageable);
+        Page<UserCourse> result = userCourseRepository.findByUser_IdWithCourse(userId, pageable);
 
         List<CourseDto.MyCourseItem> items = result.getContent().stream()
                 .map(uc -> {
@@ -128,8 +128,8 @@ public class CourseService {
                             .imageUrl(c.getImageUrl())
                             .progress(CourseProgressDto.of(
                                     percent,
-                                    cnt.completedLectures(),
-                                    cnt.totalLectures(),
+                                    (int) cnt.completedLectures(),
+                                    (int) cnt.totalLectures(),
                                     completeThreshold
                             ))
                             .build();
@@ -146,6 +146,7 @@ public class CourseService {
                 .build();
     }
     /** 결제 직전 노출용(공개 코스만) */
+    @Transactional(readOnly = true)
     public CoursePurchasePreviewDto getPurchasePreview(Long courseId) {
         Course c = courseRepository.findByIdAndPublishedTrueAndDeletedFalse(courseId)
                 .orElseThrow(() -> new NotFoundException("course"));

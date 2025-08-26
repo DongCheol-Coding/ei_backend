@@ -61,8 +61,6 @@ public class CourseDto {
         private Long courseId;
         private String courseTitle;
         private String imageUrl;
-        private int completedCount;
-        private int totalCount;
         private CourseProgressDto progress;
     }
 
