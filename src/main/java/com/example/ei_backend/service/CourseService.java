@@ -60,7 +60,7 @@ public class CourseService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public Course findById(Long courseId) {
         return courseRepository.findById(courseId)
                 .orElseThrow(() -> new NotFoundException("course"));
