@@ -12,7 +12,10 @@ import lombok.Setter;
 @AllArgsConstructor
 public class ProgressUpdateRequest {
 
+
     @NotNull
     private Integer watchedSec;
+
+    private boolean completed;
 
 }

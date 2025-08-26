@@ -51,5 +51,27 @@ public class LectureProgress extends BaseTimeEntity {
         return changed;
     }
 
+    /** 시청 진행 업데이트(뒤로감기 방지 + 완료판정 + 정규화) */
+    public void applyProgress(int positionSec, int durationSec, double threshold, boolean clientCompleted) {
+        int dur = Math.max(1, durationSec);
+        int clamped = Math.max(this.watchedSec, Math.min(positionSec, dur)); // 뒤로감기 방지 + 캡핑
+        this.watchedSec = clamped;
+        this.lastPlayedAt = Instant.now();
+
+        double ratio = (double) this.watchedSec / dur;
+        if (clientCompleted || ratio >= threshold) {
+            this.completed = true;
+            this.watchedSec = dur; // ✅ 완료 시 정규화
+        }
+    }
+
+    /** 필요 시 외부에서 바로 완료 처리할 때 사용 */
+    public void markCompleted(int durationSec) {
+        int dur = Math.max(1, durationSec);
+        this.completed = true;
+        this.watchedSec = dur;
+        this.lastPlayedAt = Instant.now();
+    }
+
 
 }

@@ -6,10 +6,8 @@ import com.example.ei_backend.domain.entity.LectureProgress;
 import com.example.ei_backend.exception.NotFoundException;
 import com.example.ei_backend.repository.LectureProgressRepository;
 import com.example.ei_backend.repository.LectureRepository;
-import com.example.ei_backend.repository.UserCourseRepository;
 import com.example.ei_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.apache.catalina.security.SecurityUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,36 +23,38 @@ public class ProgressService {
     private final UserRepository userRepository;
     private final SimpMessagingTemplate broker;
 
-    @Value("${progress.complete-threshold:0.9}")
-    private double threshold;
+    private final LectureProgressService lectureProgressService;
+    private final CourseProgressService courseProgressService;
 
-    /**
-     * ADMIN이거나, 해당 강의에 접근 권한이 있는 사용자만 업데이트 가능
-     */
+    @Value("${app.progress.complete-threshold:90.0}")
+    private double completeThreshold; // 필요시에만 사용
+
+    /** ADMIN이거나 수강권한 있는 사용자만 */
     @PreAuthorize("hasRole('ADMIN') or @enrollPerm.canAccessLecture(#p0, #p1)")
     @Transactional
-    public CourseProgressWithLectureDto update(Long userId, Long lectureId, int watchedSec) {
-        Lecture l = lectureRepository.findById(lectureId)
+    public CourseProgressWithLectureDto update(Long userId, Long lectureId, int watchedSec, boolean clientCompleted) {
+        Lecture lecture = lectureRepository.findById(lectureId)
                 .orElseThrow(() -> new NotFoundException("lecture"));
-        Long courseId = l.getCourse().getId();
+        Long courseId = lecture.getCourse().getId();
 
-        var user = userRepository.getReferenceById(userId);
-        var lp = progressRepository.findByUserIdAndLectureId(userId, lectureId)
-                .orElseGet(() -> progressRepository.save(LectureProgress.start(user, l)));
-        lp.updateWatched(watchedSec, l.getDurationSec(), threshold);
+        lectureProgressService.updateProgress(userId, lectureId, watchedSec, clientCompleted);
 
-        long total = lectureRepository.countByCourseId(courseId);
-        long completed = progressRepository.countCompletedLectures(userId, courseId);
-        double courseRatio = (total == 0) ? 0.0 : (double) completed / total;
-        double lectureRatio = (l.getDurationSec() == 0) ? 0.0
-                : Math.min(1.0, (double) lp.getWatchedSec() / l.getDurationSec());
+        LectureProgress lp = progressRepository.findByUserIdAndLectureId(userId, lectureId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "progress not saved: userId=%d, lectureId=%d".formatted(userId, lectureId)));
+
+        double coursePercent = courseProgressService.getCourseProgressPercent(userId, courseId); // 0~100
+        var cnt = courseProgressService.getProgressCount(userId, courseId);
+
+        double courseRatio  = coursePercent / 100.0; // DTO가 비율(0.0~1.0)일 경우
+        double lectureRatio = (lecture.getDurationSec() == 0) ? 0.0
+                : Math.min(1.0, (double) lp.getWatchedSec() / lecture.getDurationSec());
 
         var dto = new CourseProgressWithLectureDto(
-                courseId, courseRatio, (int) completed, (int) total,
+                courseId, courseRatio, (int) cnt.completedLectures(), (int) cnt.totalLectures(),
                 lectureId, lectureRatio, lp.isCompleted()
         );
         broker.convertAndSend("/topic/progress/course/" + courseId, dto);
         return dto;
     }
-
 }

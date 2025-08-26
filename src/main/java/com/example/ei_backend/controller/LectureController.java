@@ -3,10 +3,7 @@ package com.example.ei_backend.controller;
 import com.example.ei_backend.config.ApiResponse;
 import com.example.ei_backend.domain.dto.lecture.*;
 import com.example.ei_backend.security.UserPrincipal;
-import com.example.ei_backend.service.LectureCommandService;
-import com.example.ei_backend.service.LectureCreateWithVideoService;
-import com.example.ei_backend.service.LectureQueryService;
-import com.example.ei_backend.service.ProgressService;
+import com.example.ei_backend.service.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,6 +14,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -34,11 +32,13 @@ import java.util.List;
 // @SecurityRequirement(name = "bearerAuth")     // Bearer 사용 시 교체
 public class LectureController {
 
+    private final LectureProgressService lectureProgressService;
     private final LectureCommandService lectureCommandService;
     private final LectureQueryService lectureQueryService;
     private final ProgressService progressService;
     private final LectureCreateWithVideoService createWithVideoService;
     private final ObjectMapper objectMapper;
+    private final CourseProgressService courseProgressService;
 
     /** ADMIN: 멀티파트(강의 + 영상 한번에) */
     @Operation(
@@ -230,17 +230,19 @@ public class LectureController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "강의 없음")
     })
     @PostMapping("/lectures/{lectureId}/progress")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<CourseProgressWithLectureDto> progress(
             @AuthenticationPrincipal UserPrincipal me,
-            @Parameter(description = "강의 ID", example = "1001") @PathVariable Long lectureId,
-            @RequestBody(
-                    required = true,
-                    description = "진행도 업데이트 요청",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ProgressUpdateRequest.class))
-            )
-            @org.springframework.web.bind.annotation.RequestBody ProgressUpdateRequest req
+            @PathVariable Long lectureId,
+            @RequestBody @Valid ProgressUpdateRequest req
     ) {
-        return ApiResponse.ok(progressService.update(me.getUserId(), lectureId, req.getWatchedSec()));
+        // ProgressService는 아래 시그니처로 맞춰주세요.
+        var dto = progressService.update(
+                me.getUserId(),
+                lectureId,
+                req.getWatchedSec(),
+                req.isCompleted()
+        );
+        return ApiResponse.ok(dto);
     }
 }
