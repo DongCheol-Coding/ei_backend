@@ -72,6 +72,10 @@
       client:
         host: ${CLIENT_HOST}
 
+      progress:
+        complete-threshold-ratio: 0.9   # 강의 완료 임계치(90%)
+        complete-threshold: 90.0
+
       cookie:
         root-domain: ${COOKIE_DOMAIN:}
         secure: ${COOKIE_SECURE:false}
