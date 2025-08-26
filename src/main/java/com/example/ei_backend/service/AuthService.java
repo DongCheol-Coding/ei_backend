@@ -29,6 +29,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.lang.Nullable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -247,18 +250,46 @@ public class AuthService {
     /** 관리자 검색 */
     @Transactional(readOnly = true)
     public List<User> searchUser(String name, String phoneSuffix, String role) {
-        List<User> allUsers = userRepository.findAll();
+        List<User> allUsers = userRepository.findAll(); // (아래 3번 스펙 방식 권장)
         Stream<User> stream = allUsers.stream();
 
-        if (name != null || phoneSuffix != null) {
-            stream = stream.filter(user -> user.matchesAny(name, phoneSuffix));
+        boolean hasName = name != null && !name.isBlank();
+        boolean hasSuffix = phoneSuffix != null && !phoneSuffix.isBlank();
+        boolean hasRole = role != null && !role.isBlank();
+
+        if (hasName || hasSuffix) {
+            stream = stream.filter(u -> u.matchesAny(name, phoneSuffix));
         }
-        if (role != null) {
+        if (hasRole) {
             UserRole targetRole = parseRole(role);
-            stream = stream.filter(user -> user.hasRole(targetRole));
+            stream = stream.filter(u -> u.hasRole(targetRole));
         }
         return stream.toList();
     }
+
+    @Transactional(readOnly = true)
+    public Page<User> searchUserPage(String name, String phoneSuffix, String role, Pageable pageable) {
+        Specification<User> spec = (root, query, cb) -> {
+            query.distinct(true);             //  roles join으로 생길 수 있는 중복 제거
+            return cb.conjunction();          // always-true
+        };
+
+        if (name != null && !name.isBlank()) {
+            String like = "%" + name.toLowerCase() + "%";
+            spec = spec.and((root, q, cb) -> cb.like(cb.lower(root.get("name")), like));
+        }
+        if (phoneSuffix != null && !phoneSuffix.isBlank()) {
+            spec = spec.and((root, q, cb) -> cb.like(root.get("phone"), "%" + phoneSuffix));
+        }
+        if (role != null && !role.isBlank()) {
+            UserRole target = parseRole(role);
+            spec = spec.and((root, q, cb) -> cb.equal(root.join("roles"), target)); // ElementCollection 조인
+            // 대안: cb.isMember(target, root.get("roles"))
+        }
+
+        return userRepository.findAll(spec, pageable);
+    }
+
 
     /** 프로필 이미지 업로드/교체 */
     @Transactional
