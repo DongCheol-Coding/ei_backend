@@ -11,11 +11,11 @@ import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+@Slf4j
 @Tag(name = "Lecture", description = "강의 생성/수정/삭제, 조회, 진행도 업데이트 API")
 @RestController
 @RequiredArgsConstructor
@@ -32,13 +33,11 @@ import java.util.List;
 // @SecurityRequirement(name = "bearerAuth")     // Bearer 사용 시 교체
 public class LectureController {
 
-    private final LectureProgressService lectureProgressService;
     private final LectureCommandService lectureCommandService;
     private final LectureQueryService lectureQueryService;
     private final ProgressService progressService;
     private final LectureCreateWithVideoService createWithVideoService;
     private final ObjectMapper objectMapper;
-    private final CourseProgressService courseProgressService;
 
     /** ADMIN: 멀티파트(강의 + 영상 한번에) */
     @Operation(
@@ -236,6 +235,9 @@ public class LectureController {
             @PathVariable Long lectureId,
             @RequestBody @Valid ProgressUpdateRequest req
     ) {
+        log.info("[progress:req] userId={}, lectureId={}, watchedSec={}, completed={}",
+                me.getUserId(), lectureId, req.getWatchedSec(), req.isCompleted());
+
         // ProgressService는 아래 시그니처로 맞춰주세요.
         var dto = progressService.update(
                 me.getUserId(),
