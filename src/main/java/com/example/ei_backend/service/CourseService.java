@@ -60,13 +60,13 @@ public class CourseService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Course findById(Long courseId) {
         return courseRepository.findById(courseId)
                 .orElseThrow(() -> new NotFoundException("course"));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<CourseDto.Summary> listAllPublicCourses() {
         List<Course> list = courseRepository
                 .findByPublishedTrueAndDeletedFalse(Sort.by(Sort.Direction.DESC, "id")); // createdAt 있으면 그걸로
