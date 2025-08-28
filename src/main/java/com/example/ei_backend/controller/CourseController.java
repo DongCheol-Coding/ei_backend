@@ -44,7 +44,7 @@ public class CourseController {
     @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "코스 진행률 조회",
-            description = "사용자별 코스 진행률(%)과 완료/전체 강의 수를 반환합니다.",
+            description = "사용자별 코스 진행률과 완료/전체 강의 수를 반환합니다.",
             security = { @SecurityRequirement(name = "accessTokenCookie") }
     )
     public ApiResponse<CourseProgressDto> getCourseProgress(
