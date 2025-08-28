@@ -8,6 +8,7 @@ import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.CourseProgressService;
 import com.example.ei_backend.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -41,8 +42,15 @@ public class CourseController {
 
     @GetMapping("/{courseId}/progress")
     @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "코스 진행률 조회",
+            description = "사용자별 코스 진행률과 완료/전체 강의 수를 반환합니다.",
+            security = { @SecurityRequirement(name = "accessTokenCookie") }
+    )
     public ApiResponse<CourseProgressDto> getCourseProgress(
-            @AuthenticationPrincipal UserPrincipal principal,
+            @Parameter(hidden = true)
+            @org.springframework.security.core.annotation.AuthenticationPrincipal UserPrincipal principal,
+            @Parameter(description = "코스 ID", example = "101")
             @PathVariable Long courseId
     ) {
         Long userId = principal.getUserId();
@@ -121,6 +129,7 @@ public class CourseController {
 //        var items = courseService.findPublicCourses(page, size, q, sort);
 //        return ResponseEntity.ok(ApiResponse.ok(items));
 //    }
+
     // 공개/비공개 토글 (ADMIN)
     @PatchMapping("/{courseId}/publish")
     @PreAuthorize("hasRole('ADMIN')")
