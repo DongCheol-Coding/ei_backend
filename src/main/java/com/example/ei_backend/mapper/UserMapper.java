@@ -21,6 +21,7 @@ public interface UserMapper {
     @Mapping(source = "roles", target = "roles")
     @Mapping(source = "phone", target = "phone")
     @Mapping(source = "social", target = "isSocial")
+    @Mapping(source = "deleted", target = "isDeleted")
     @Mapping(target = "imageUrl", expression = "java(user.getProfileImage() != null ? user.getProfileImage().getImageUrl() : null)")
     UserDto.Response toResponse(User user);
 
