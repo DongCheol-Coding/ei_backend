@@ -3,6 +3,7 @@ package com.example.ei_backend.domain.dto;
 import com.example.ei_backend.domain.UserRole;
 import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.validation.ValidPassword;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -49,8 +50,13 @@ public class UserDto {
         private String name;
         private String token;
         private String phone;
-        private String birthDate;
+
+        @JsonProperty("isSocial")
         private boolean isSocial;
+
+        @JsonProperty("isDeleted")
+        private boolean isDeleted;
+
         private String imageUrl;
         private Set<UserRole> roles;
 
@@ -66,6 +72,7 @@ public class UserDto {
                     .imageUrl(user.getProfileImage() != null ? user.getProfileImage().getImageUrl() : null)
                     .roles(user.getRoles())
                     .isSocial(user.isSocial())
+                    .isDeleted(user.isDeleted())
                     .token(token)
                     .build();
         }
@@ -85,6 +92,7 @@ public class UserDto {
                     .imageUrl(user.getProfileImage() != null ? user.getProfileImage().getImageUrl() : null)
                     .roles(user.getRoles())
                     .isSocial(user.isSocial())
+                    .isDeleted(user.isDeleted())
                     .build();
         }
     }
