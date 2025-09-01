@@ -8,15 +8,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.LocalDateTime;
+import java.util.Optional;
+
 public interface UserCourseRepository extends JpaRepository<UserCourse, Long> {
 
     boolean existsByUserIdAndCourseId(Long userId, Long courseId);
 
-    // 페이징 + 연관로딩은 EntityGraph 추천 (안전)
     @EntityGraph(attributePaths = {"course"})
     Page<UserCourse> findByUser_Id(Long userId, Pageable pageable);
 
-    // fetch join 꼭 써야 한다면 countQuery 분리
     @Query(
             value = """
             select uc from UserCourse uc
@@ -29,4 +30,7 @@ public interface UserCourseRepository extends JpaRepository<UserCourse, Long> {
         """
     )
     Page<UserCourse> findByUser_IdWithCourse(@Param("userId") Long userId, Pageable pageable);
+
+    // ✅ 8주 시작일 조회용: 엔티티 자체를 가져옵니다.
+    Optional<UserCourse> findByUser_IdAndCourse_Id(Long userId, Long courseId);
 }
