@@ -52,5 +52,87 @@
 
 | 이름                                         | 진행 사항 |
 | -------------------------------------------- | --------- |
-| [**이동현**](https://github.com/soohofather) | ✅ <br>✅   |
-| [**하민철**](https://github.com/teotaku)     | ✅ <br>✅   |
+| [**이동현**](https://github.com/soohofather) | 프론트엔드 개발 및 UI 구현  |
+| [**하민철**](https://github.com/teotaku)     | 백엔드 개발 및 배포 환경 구성   |
+
+## 5️⃣ 프로젝트 소개 (Architecture & Design)
+
+동철코딩은 Spring Boot 기반 교육 플랫폼으로,
+계층형 아키텍처(Layered Architecture) 위에 **도메인 모델 패턴(Domain Model Pattern)**을 적용하여 개발된 모놀리식 애플리케이션입니다.
+
+🔹 아키텍처
+
+3계층 구조: Controller → Service → Repository
+
+주요 도메인(회원, 강의, 결제, 마이페이지, 채팅)을 단일 애플리케이션 안에서 관리
+
+🔹 도메인 모델 패턴
+
+User 엔티티 내부에 validatePassword(), softDelete(), bumpTokenVersion() 같은 비즈니스 로직 포함
+
+단순 데이터 보관이 아닌, 풍부한 도메인 모델로 비즈니스 규칙을 캡슐화
+
+🔹 영속성 계층
+
+Spring Data JPA Repository로 데이터 접근 추상화
+
+Specification<User>와 @EntityGraph를 활용하여 동적 검색 + 성능 최적화 구현
+
+🔹 표현 계층
+
+UserDto.Request, UserDto.Response로 API 입출력 분리
+
+MapStruct 기반의 DTO ↔ Entity 변환으로 반복 코드 제거
+
+🔹 인증 및 보안
+
+JWT 기반 Stateless 인증 (AccessToken + RefreshToken)
+
+JwtAuthenticationFilter로 매 요청 인증/인가 처리
+
+🔹 데이터 관리
+
+isDeleted, deletedAt, deletedReason 필드로 Soft Delete 패턴 적용
+
+회원 탈퇴 시 이메일을 deleted-{id}@user.invalid로 익명화하여 유니크 제약 충돌 방지 + 개인정보 보호 강화
+
+## 6️⃣ API 설계 철학 (Design Philosophy)
+
+동철코딩 백엔드의 API는 단순 CRUD를 넘어서, 보안·데이터 정합성·성능 최적화·개인정보 보호를 고려하여 설계되었습니다.
+각 기능마다 문제 상황 → 고민 → 최종 의사결정 과정을 거쳐 실제 서비스 운영 환경에 적합한 구조를 선택했습니다.
+
+🔹 회원가입 & 이메일 인증
+
+문제: 잘못된 이메일·중복 가입 방지 필요
+
+해결: EmailVerification 엔티티를 통해 인증 코드와 요청 JSON을 저장 → 만료 검증 후 최종 회원가입
+
+🔹 로그인 & JWT 인증
+
+문제: 세션 방식은 확장성에 한계
+
+해결: AccessToken + RefreshToken 구조, tokenVersion 필드로 탈퇴/비밀번호 변경 시 토큰 무효화
+
+🔹 회원 탈퇴
+
+문제: Hard Delete 시 결제·수강 이력 정합성 깨짐
+
+해결: Soft Delete(isDeleted) + 개인정보 익명화(deleted-{id}@user.invalid) → 유니크 충돌 방지 및 보안 강화
+
+🔹 결제 API (KakaoPay 연동)
+
+문제: Ready 성공 후 Approve 실패 시 데이터 불일치
+
+해결: PendingPayment 테이블로 중간 상태 저장, Approve 성공 시에만 Payment/UserCourse 생성
+
+🔹 코스 진행률
+
+문제: 단순 시청 완료 여부만 저장하면 세부 진행률 불가
+
+해결: LectureProgress 엔티티에 watchedSec, completed 저장 → 90% 이상 시 자동 완료 처리
+
+🔹 관리자 회원 검색
+
+문제: 전체 조회 후 필터링은 성능 저하 및 N+1 문제 발생
+
+해결: Spring Data JPA Specification + @EntityGraph로 동적 검색 및 성능 최적화
