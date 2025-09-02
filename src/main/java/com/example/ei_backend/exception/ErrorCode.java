@@ -15,6 +15,7 @@ public enum ErrorCode {
     INVALID_ROLE("E400", HttpStatus.BAD_REQUEST, "유효하지 않은 사용자 역할입니다."),
     CONFLICT("E409", HttpStatus.CONFLICT, "리소스 충돌"),
     DATABASE_CONSTRAINT_VIOLATION("E409_DB", HttpStatus.BAD_REQUEST, "데이터 무결성 위반"),
+    CHAT_ROOM_CLOSED("E409_Chat", HttpStatus.BAD_REQUEST, "채팅방이 종료되었습니다."),
 
     // 회원/인증
     EMAIL_ALREADY_EXISTS("U409", HttpStatus.CONFLICT, "이미 가입된 이메일입니다."),
