@@ -38,12 +38,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // ✅ 1:1 DM을 위해 개인 큐 prefix 추가
+        //  1:1 DM을 위해 개인 큐 prefix 추가
         registry.enableSimpleBroker("/topic", "/queue");
         registry.setApplicationDestinationPrefixes("/app");
 
-        // ✅ 반드시 추가: /user/queue/... 로 사용자별 라우팅 사용
+        //  반드시 추가: /user/queue/... 로 사용자별 라우팅 사용
         registry.setUserDestinationPrefix("/user");
+
+        //메시지 순서가 어긋날 가능성을 낮춰준다
+        registry.setPreservePublishOrder(true);
+
     }
 
     @Override
