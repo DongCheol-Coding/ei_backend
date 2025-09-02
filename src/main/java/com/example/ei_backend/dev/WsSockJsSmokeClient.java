@@ -1,5 +1,6 @@
 package com.example.ei_backend.dev;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
 import org.springframework.messaging.simp.stomp.*;
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.*;
 
+@Slf4j
 public class WsSockJsSmokeClient {
 
     // 실행 예: java ... WsSockJsSmokeClient ws://localhost:8080 <JWT> 1
@@ -28,7 +30,7 @@ public class WsSockJsSmokeClient {
 
         // ✅ SockJS의 raw websocket 엔드포인트로 직접 접속 + 쿼리에도 token 싣기
         String url = base + "/ws-chat/websocket?token=" + URLEncoder.encode(jwt, StandardCharsets.UTF_8);
-        System.out.println("[CONNECT] " + url);
+        log.info("[CONNECT] " + url);
 
         // ✅ 핸드셰이크 헤더에 Authorization도 함께 싣기(이중 안전)
         WebSocketHttpHeaders wsHeaders = new WebSocketHttpHeaders();
@@ -47,20 +49,20 @@ public class WsSockJsSmokeClient {
         session.subscribe("/user/queue/messages", new StompFrameHandler() {
             @Override public Type getPayloadType(StompHeaders headers) { return String.class; }
             @Override public void handleFrame(StompHeaders headers, Object payload) {
-                System.out.println("[RECV] " + payload);
+                log.info("[RECV] " + payload);
                 latch.countDown();
             }
         });
 
         var body = Map.of("chatRoomId", roomId, "message", "hi @" + LocalDateTime.now());
-        System.out.println("[SEND] " + body);
+        log.info("[SEND] " + body);
         session.send("/app/chat.send", body);
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
-            System.out.println("⚠ 수신 없음 (상대 세션/권한/roomId 확인)");
+            log.info("수신 없음 (상대 세션/권한/roomId 확인)");
         }
 
         session.disconnect();
-        System.out.println("[DONE]");
+        log.info("[DONE]");
     }
 }
