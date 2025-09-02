@@ -1,6 +1,9 @@
 package com.example.ei_backend.controller;
 
 import com.example.ei_backend.domain.dto.chat.ChatMessageResponseDto;
+import com.example.ei_backend.domain.dto.chat.CloseRoomRequest;
+import com.example.ei_backend.domain.dto.chat.CloseRoomResponse;
+import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.domain.entity.chat.ChatMessage;
 import com.example.ei_backend.security.UserPrincipal;
 import com.example.ei_backend.service.ChatService;
@@ -9,12 +12,13 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import com.example.ei_backend.config.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,11 +39,11 @@ public class ChatRestController {
             description = "회원이 고객지원 담당자 이메일로 새로운 채팅방을 개설합니다."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "성공",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = Long.class))),
-            @ApiResponse(responseCode = "400", description = "잘못된 파라미터"),
-            @ApiResponse(responseCode = "401", description = "인증 필요"),
-            @ApiResponse(responseCode = "403", description = "권한 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 파라미터"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @PostMapping("/open")
     public ResponseEntity<Long> openRoom(
@@ -56,11 +60,11 @@ public class ChatRestController {
             description = "특정 채팅방의 메시지를 오래된 순서로 조회합니다."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "성공",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatMessageResponseDto.class)))),
-            @ApiResponse(responseCode = "401", description = "인증 필요"),
-            @ApiResponse(responseCode = "403", description = "권한 없음(해당 방 접근 불가)"),
-            @ApiResponse(responseCode = "404", description = "채팅방 또는 메시지 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음(해당 방 접근 불가)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 메시지 없음")
     })
     @GetMapping("/{roomId}/message")
     public ResponseEntity<List<ChatMessageResponseDto>> getMessages(
@@ -70,5 +74,32 @@ public class ChatRestController {
     ) {
         List<ChatMessage> messages = chatService.getMessages(roomId, principal.getUsername());
         return ResponseEntity.ok(messages.stream().map(ChatMessageResponseDto::from).toList());
+    }
+
+    @io.swagger.v3.oas.annotations.Operation(
+            summary = "채팅방 종료",
+            description = "ROLE_SUPPORT가 자신이 담당 중인 채팅방을 종료합니다."
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "종료 성공",
+                    content = @io.swagger.v3.oas.annotations.media.Content(
+                            schema = @io.swagger.v3.oas.annotations.media.Schema(implementation = CloseRoomResponse.class)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음(해당 방 담당자가 아님)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "방 없음 또는 이미 종료됨")
+    })
+    @PatchMapping("/{roomId}/close")
+    @PreAuthorize("hasRole('SUPPORT')")
+    public com.example.ei_backend.config.ApiResponse<CloseRoomResponse> closeRoom(
+            @PathVariable Long roomId,
+            // principal 타입이 UserPrincipal이라면 아래처럼 이메일만 꺼내 쓰는 게 가장 안전합니다.
+            @AuthenticationPrincipal(expression = "username") String email,
+            @RequestBody(required = false) CloseRoomRequest req
+    ) {
+        CloseRoomResponse res = chatService.closeRoom(roomId, email, req);
+        return com.example.ei_backend.config.ApiResponse.ok(res);
     }
 }
