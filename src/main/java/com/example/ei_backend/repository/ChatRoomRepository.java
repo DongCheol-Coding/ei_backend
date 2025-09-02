@@ -19,8 +19,12 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     Optional<ChatRoom> findByMemberAndSupport(User member, User support);
     List<ChatRoom> findAllBySupport(User support);
     List<ChatRoom> findAllByMember(User member);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"member","support"})
     Page<ChatRoom> findAllBySupportId(Long supportId, Pageable pageable);
+
     Page<ChatRoom> findAllByMemberId(Long memberId, Pageable pageable);
+    Page<ChatRoom> findAllBySupportIdAndClosedAtIsNotNull(Long supportId, Pageable pageable);
 
     @Query("""
     select r
@@ -47,4 +51,5 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     // ===== (옵션) 통계/필터링에 유용 =====
     long countBySupportIdAndClosedAtIsNull(Long supportId);
     long countByMemberIdAndClosedAtIsNull(Long memberId);
+
 }

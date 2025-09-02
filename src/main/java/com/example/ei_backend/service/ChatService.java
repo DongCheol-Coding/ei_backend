@@ -1,6 +1,7 @@
 package com.example.ei_backend.service;
 
 import com.example.ei_backend.domain.UserRole;
+import com.example.ei_backend.domain.dto.chat.ChatRoomSummaryDto;
 import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.domain.entity.chat.ChatMessage;
 import com.example.ei_backend.domain.entity.chat.ChatRoom;
@@ -11,6 +12,8 @@ import com.example.ei_backend.repository.ChatMessageRepository;
 import com.example.ei_backend.repository.ChatRoomRepository;
 import com.example.ei_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -147,5 +150,25 @@ public class ChatService {
                 .closedAt(room.getClosedAt())
                 .build();
     }
+
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<ChatRoomSummaryDto> getMyRoomsForSupport(
+            String supportEmail, String status, Pageable pageable) {
+
+        User support = userRepository.findByEmailAndIsDeletedFalse(supportEmail)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        Page<ChatRoom> rooms;
+        switch ((status == null ? "open" : status).toLowerCase()) {
+            case "closed" -> rooms = chatRoomRepository
+                    .findAllBySupportIdAndClosedAtIsNotNull(support.getId(), pageable);
+            case "all"    -> rooms = chatRoomRepository
+                    .findAllBySupportId(support.getId(), pageable);
+            default       -> rooms = chatRoomRepository
+                    .findAllBySupportIdAndClosedAtIsNull(support.getId(), pageable); // open
+        }
+        return rooms.map(ChatRoomSummaryDto::from);
+    }
+
 
 }

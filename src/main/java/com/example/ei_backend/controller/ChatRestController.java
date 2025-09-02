@@ -1,6 +1,7 @@
 package com.example.ei_backend.controller;
 
 import com.example.ei_backend.domain.dto.chat.ChatMessageResponseDto;
+import com.example.ei_backend.domain.dto.chat.ChatRoomSummaryDto;
 import com.example.ei_backend.domain.dto.chat.CloseRoomRequest;
 import com.example.ei_backend.domain.dto.chat.CloseRoomResponse;
 import com.example.ei_backend.domain.entity.User;
@@ -17,6 +18,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -102,4 +109,46 @@ public class ChatRestController {
         CloseRoomResponse res = chatService.closeRoom(roomId, email, req);
         return com.example.ei_backend.config.ApiResponse.ok(res);
     }
+
+    @io.swagger.v3.oas.annotations.Operation(
+            summary = "내 채팅방 목록(SUPPORT)",
+            description = "status=open|closed|all (기본 open), page/size/sort 지원"
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    content = @io.swagger.v3.oas.annotations.media.Content(
+                            array = @io.swagger.v3.oas.annotations.media.ArraySchema(
+                                    schema = @io.swagger.v3.oas.annotations.media.Schema(
+                                            implementation = ChatRoomSummaryDto.class))))
+    })
+    @GetMapping("/mine")
+    @PreAuthorize("hasRole('SUPPORT')")
+    public ResponseEntity<Page<ChatRoomSummaryDto>> myRooms(
+            @RequestParam(defaultValue = "open") String status,
+            @AuthenticationPrincipal(expression = "username") String email,
+            @ParameterObject
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable
+    ) {
+        pageable = sanitizeSort(pageable); // ↓ 2) 참고
+        return ResponseEntity.ok(chatService.getMyRoomsForSupport(email, status, pageable));
+    }
+
+    private Pageable sanitizeSort(Pageable pageable) {
+        var allowed = java.util.Set.of("createdAt", "closedAt", "id");
+        Sort validSort = pageable.getSort().isUnsorted()
+                ? Sort.by(Sort.Direction.DESC, "createdAt")
+                : Sort.by(
+                pageable.getSort().stream()
+                        .filter(o -> allowed.contains(o.getProperty()))
+                        .map(o -> new Sort.Order(o.getDirection(), o.getProperty()))
+                        .toList()
+        );
+        if (validSort.isUnsorted()) {
+            validSort = Sort.by(Sort.Direction.DESC, "createdAt");
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), validSort);
+    }
+
 }
