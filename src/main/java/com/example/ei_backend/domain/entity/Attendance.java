@@ -46,10 +46,10 @@ public class Attendance {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    /** 출석 여부: 기본 false */
-    @Column(name = "attended", nullable = false)
+    /** 출석 여부: 기본 true */
+    @Column(name = "attended", nullable = false, columnDefinition = "TINYINT(1) DEFAULT 0")
     @Builder.Default
-    private boolean attended = false;
+    private boolean attended = true;
 
     @PrePersist
     void onCreate() {
