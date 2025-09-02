@@ -51,9 +51,9 @@ public class TestDataInitializer {
     }
 
     private void upsertCourse(String title, String description, int price, String imageUrl) {
-        Optional<Course> exists = courseRepository.findByTitle(title);
-        if (exists.isPresent()) return;
-
+        if (courseRepository.existsByTitleAndDeletedFalse(title)) {
+            return; // 이미 활성 코스가 있으면 skip
+        }
         courseRepository.save(
                 Course.builder()
                         .title(title)
