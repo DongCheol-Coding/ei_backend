@@ -3,6 +3,7 @@ package com.example.ei_backend.testadmin;
 import com.example.ei_backend.domain.entity.Course;
 import com.example.ei_backend.repository.CourseRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,6 +13,7 @@ import java.util.Optional;
 
 @Configuration
 @RequiredArgsConstructor
+@Slf4j
 public class TestDataInitializer {
 
     private final CourseRepository courseRepository;
@@ -44,7 +46,7 @@ public class TestDataInitializer {
                     199,
                     cdn("https://my-project-bucket-8655.s3.ap-northeast-2.amazonaws.com/product-images/2c774c9f-a4c6-4563-acdc-24d15ff1ada2_001.png")
             );
-            System.out.println("▶ 코스 시드 완료 (필요한 항목만 upsert)");
+            log.info("▶ 코스 시드 완료 (필요한 항목만 upsert)");
         };
     }
 
@@ -64,6 +66,6 @@ public class TestDataInitializer {
     }
 
     private static String cdn(String path) {
-        return "https://cdn.dongcheolcoding.life" + path;
+        return path;
     }
 }

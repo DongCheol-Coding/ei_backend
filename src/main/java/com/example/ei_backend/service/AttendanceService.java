@@ -60,6 +60,7 @@ public class AttendanceService {
                 .firstPlayedAt(LocalDateTime.now(KST))
                 .ipAddress(ip)
                 .userAgent(ua)
+                .attended(true)
                 .build();
 
         try {
