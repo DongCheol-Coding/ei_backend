@@ -50,12 +50,18 @@ public class TestPurchaseSeed implements CommandLineRunner {
         log.info("[Seed] 테스트 회원 확인: id={}, email={}", member.getId(), member.getEmail());
 
         // 2) 대상 코스 조회 (TestDataInitializer가 upsert 했다고 가정)
+        // 2) 대상 코스 조회 (TestDataInitializer가 upsert 했다고 가정)
         for (String title : TARGET_TITLES) {
-            Optional<Course> oc = courseRepository.findByTitle(title);
+            // ✅ 단일 결과 예외 방지: Top1 선택
+            Optional<Course> oc = courseRepository.findFirstByTitleAndDeletedFalseOrderByIdAsc(title);
+            // 공개된 것만 쓰려면 위 라인 대신 아래 라인 사용
+            // Optional<Course> oc = courseRepository.findFirstByTitleAndPublishedTrueAndDeletedFalseOrderByIdAsc(title);
+
             if (oc.isEmpty()) {
                 log.warn("[Seed] 코스를 찾지 못했습니다. title='{}' (TestDataInitializer 순서/DB 상태 확인 필요)", title);
                 continue;
             }
+
             Course course = oc.get();
             log.info("[Seed] 코스 확인: id={}, title={}, price={}", course.getId(), course.getTitle(), course.getPrice());
 
