@@ -1,6 +1,7 @@
 package com.example.ei_backend.service;
 
 import com.example.ei_backend.domain.UserRole;
+import com.example.ei_backend.domain.dto.chat.ChatMessageResponseDto;
 import com.example.ei_backend.domain.dto.chat.ChatRoomSummaryDto;
 import com.example.ei_backend.domain.entity.User;
 import com.example.ei_backend.domain.entity.chat.ChatMessage;
@@ -12,21 +13,29 @@ import com.example.ei_backend.repository.ChatMessageRepository;
 import com.example.ei_backend.repository.ChatRoomRepository;
 import com.example.ei_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatService {
 
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
+
+    // afterCommit 발행용
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * 멤버 - 상담자 1:1 채팅방 조회 또는 생성
@@ -37,11 +46,11 @@ public class ChatService {
                 .orElseThrow(() -> new NotFoundException("member"));
 
         User support = userRepository.findByEmailAndIsDeletedFalse(supportEmail)
-                .filter(u -> u.getRoles().contains(UserRole.ROLE_SUPPORT)) // roles 매핑이 있다면
+                .filter(u -> u.getRoles().contains(UserRole.ROLE_SUPPORT))
                 .orElseThrow(() -> new NotFoundException("support"));
 
         ChatRoom room = chatRoomRepository
-                .findByMemberAndSupportAndClosedAtIsNull(member, support) // 열린 방만
+                .findByMemberAndSupportAndClosedAtIsNull(member, support)
                 .orElseGet(() -> chatRoomRepository.save(
                         ChatRoom.builder()
                                 .member(member)
@@ -52,10 +61,11 @@ public class ChatService {
     }
 
     /**
-     * 채팅방세 메시지 저장 + 반환
+     * 채팅방에 메시지 저장 → 커밋 이후(/user/queue/messages) 발행
      */
     @Transactional
     public ChatMessage sendMessage(Long chatRoomId, String senderEmail, String message) {
+        // (성능 개선 원하면) chatRoomRepository.findByIdWithUsers(...)로 교체 권장
         ChatRoom room = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
@@ -76,12 +86,38 @@ public class ChatService {
                 .sentAt(LocalDateTime.now())
                 .build();
 
-        return chatMessageRepository.save(saved);
+        // ... 생략 ...
+        saved = chatMessageRepository.save(saved);
+
+// 트랜잭션 안에서 필요한 값들 미리 확정
+        final String memberEmail = room.getMember().getEmail();
+        final String supportEmail = room.getSupport().getEmail();
+        final String recipientEmail = senderEmail.equals(memberEmail) ? supportEmail : memberEmail;
+
+// DTO와 함께 "메시지 ID"도 스칼라로 캡처
+        final ChatMessageResponseDto payload = ChatMessageResponseDto.from(saved);
+        final Long msgId = saved.getId();   // <-- 여기!
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            throw new IllegalStateException("Transaction synchronization is not active. Ensure @Transactional is applied.");
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                messagingTemplate.convertAndSendToUser(recipientEmail, "/queue/messages", payload);
+                messagingTemplate.convertAndSendToUser(senderEmail, "/queue/messages", payload);
+                // DTO에 getId()가 없어도 엔티티 ID를 캡처해뒀으니 OK
+                log.info("[chat] committed => to={}, from={}, msgId={}", recipientEmail, senderEmail, msgId);
+            }
+        });
+
+        return saved;
     }
 
-    /**
-     * 채팅방 메시지 전체 조회(오래된 순)
-     */
+        /**
+         * 채팅방 메시지 전체 조회(오래된 순)
+         */
     @Transactional(readOnly = true)
     public List<ChatMessage> getMessages(Long chatRoomId, String requestEmail) {
         ChatRoom room = chatRoomRepository.findById(chatRoomId)
@@ -107,7 +143,7 @@ public class ChatService {
     }
 
     /**
-     * 맴버용: 내가 가진 채팅방 목록
+     * 멤버용: 내가 가진 채팅방 목록
      */
     @Transactional(readOnly = true)
     public List<ChatRoom> getRoomsForMember(String memberEmail) {
@@ -127,16 +163,13 @@ public class ChatService {
     public com.example.ei_backend.domain.dto.chat.CloseRoomResponse closeRoom(
             Long roomId, String supportEmail, com.example.ei_backend.domain.dto.chat.CloseRoomRequest req) {
 
-        // 열린 방만 종료 가능
         ChatRoom room = chatRoomRepository.findByIdAndClosedAtIsNull(roomId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        // 요청자 = SUPPORT 사용자
         User support = userRepository.findByEmailAndIsDeletedFalse(supportEmail)
                 .filter(u -> u.getRoles().contains(UserRole.ROLE_SUPPORT))
                 .orElseThrow(() -> new CustomException(ErrorCode.ACCESS_DENIED));
 
-        // 자기 방만 종료 가능
         if (room.getSupport() == null || !room.getSupport().getId().equals(support.getId())) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
@@ -152,7 +185,7 @@ public class ChatService {
     }
 
     @Transactional(readOnly = true)
-    public org.springframework.data.domain.Page<ChatRoomSummaryDto> getMyRoomsForSupport(
+    public Page<ChatRoomSummaryDto> getMyRoomsForSupport(
             String supportEmail, String status, Pageable pageable) {
 
         User support = userRepository.findByEmailAndIsDeletedFalse(supportEmail)
@@ -169,6 +202,4 @@ public class ChatService {
         }
         return rooms.map(ChatRoomSummaryDto::from);
     }
-
-
 }
