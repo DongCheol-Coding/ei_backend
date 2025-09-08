@@ -20,42 +20,52 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final UserPrincipalHandshakeHandler userPrincipalHandshakeHandler;
     private final JwtStompChannelInterceptor jwtStompChannelInterceptor;
 
+    // 운영에선 환경변수/설정으로 주입 추천
+    private static final String[] ALLOWED_ORIGINS = {
+            "https://dongcheolcoding.life",
+            "https://api.dongcheolcoding.life",
+            "http://localhost:3000"
+    };
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // 1) 네이티브 WS (Postman 테스트용)
+        // 네이티브 WS
         registry.addEndpoint("/ws-chat")
                 .addInterceptors(jwtHandshakeInterceptor)
                 .setHandshakeHandler(userPrincipalHandshakeHandler)
-                .setAllowedOriginPatterns("*"); // withSockJS() 없음!
+                .setAllowedOriginPatterns(ALLOWED_ORIGINS);
 
-        // 2) 기존 SockJS 엔드포인트 (프론트에서 SockJS 클라이언트 쓸 때)
+        // SockJS
         registry.addEndpoint("/ws-chat-sockjs")
                 .addInterceptors(jwtHandshakeInterceptor)
                 .setHandshakeHandler(userPrincipalHandshakeHandler)
-                .setAllowedOriginPatterns("*")
+                .setAllowedOriginPatterns(ALLOWED_ORIGINS)
+                .withSockJS();
+
+        // 필요하다면 /api prefix도 동일하게 “보안 구성 그대로” 추가
+        registry.addEndpoint("/api/ws-chat")
+                .addInterceptors(jwtHandshakeInterceptor)
+                .setHandshakeHandler(userPrincipalHandshakeHandler)
+                .setAllowedOriginPatterns(ALLOWED_ORIGINS);
+
+        registry.addEndpoint("/api/ws-chat-sockjs")
+                .addInterceptors(jwtHandshakeInterceptor)
+                .setHandshakeHandler(userPrincipalHandshakeHandler)
+                .setAllowedOriginPatterns(ALLOWED_ORIGINS)
                 .withSockJS();
     }
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        //  1:1 DM을 위해 개인 큐 prefix 추가
         registry.enableSimpleBroker("/topic", "/queue");
         registry.setApplicationDestinationPrefixes("/app");
-
-        //  반드시 추가: /user/queue/... 로 사용자별 라우팅 사용
         registry.setUserDestinationPrefix("/user");
-
-        //메시지 순서가 어긋날 가능성을 낮춰준다
         registry.setPreservePublishOrder(true);
-
     }
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(jwtStompChannelInterceptor);
     }
-
-
-
 }
 
