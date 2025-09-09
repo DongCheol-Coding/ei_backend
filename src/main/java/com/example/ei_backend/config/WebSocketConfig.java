@@ -24,7 +24,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private static final String[] ALLOWED_ORIGINS = {
             "https://dongcheolcoding.life",
             "https://api.dongcheolcoding.life",
-            "http://localhost:3000"
+            "http://localhost:5173"
     };
 
     @Override
