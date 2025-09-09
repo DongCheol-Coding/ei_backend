@@ -89,6 +89,7 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/.well-known/**",
                                 "/ws-chat", "/ws-chat/**", "/ws-chat-sockjs", "/ws-chat-sockjs/**",
+                                "/api/ws-chat", "/api/ws-chat/**", "/api/ws-chat-sockjs", "/api/ws-chat-sockjs/**",
                                 "/api/course/{courseId}/preview",
                                 "/actuator/health",
                                 "/actuator/health/**",
