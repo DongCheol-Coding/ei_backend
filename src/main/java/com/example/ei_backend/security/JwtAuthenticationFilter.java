@@ -35,10 +35,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        log.info("[JwtFilter] 요청 경로: {}", path);
+        // log.info("[JwtFilter] 요청 경로: {}", path);
 
-        // ✅ SockJS/WS 경로는 핸드셰이크 인터셉터에서 검증하므로 필터 우회
-        if (path.startsWith("/ws-chat") || path.startsWith("/ws-chat-sockjs")) return true;
+        // WS/SockJS 엔드포인트는 Handshake/Channel 인터셉터에서 인증 → HTTP JWT 필터 우회
+        if (path.startsWith("/api/ws-chat") || path.startsWith("/api/ws-chat-sockjs")
+                || path.startsWith("/ws-chat")   || path.startsWith("/ws-chat-sockjs")) {
+            return true;
+        }
+
+        // CORS 프리플라이트는 필터 우회
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
 
         return path.startsWith("/swagger-ui")
                 || path.equals("/swagger-ui.html")
