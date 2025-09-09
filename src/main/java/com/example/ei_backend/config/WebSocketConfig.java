@@ -63,9 +63,5 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.setPreservePublishOrder(true);
     }
 
-    @Override
-    public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(jwtStompChannelInterceptor);
-    }
 }
 
