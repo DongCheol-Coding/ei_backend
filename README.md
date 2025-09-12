@@ -96,7 +96,7 @@ isDeleted, deletedAt, deletedReason 필드로 Soft Delete 패턴 적용
 
 회원 탈퇴 시 이메일을 deleted-{id}@user.invalid로 익명화하여 유니크 제약 충돌 방지 + 개인정보 보호 강화
 
-## 6️⃣ API 설계 철학 (Design Philosophy)
+6️⃣ API 설계 철학 (Design Philosophy)
 
 동철코딩 백엔드의 API는 단순 CRUD를 넘어서, 보안·데이터 정합성·성능 최적화·개인정보 보호를 고려하여 설계되었습니다.
 각 기능마다 문제 상황 → 고민 → 최종 의사결정 과정을 거쳐 실제 서비스 운영 환경에 적합한 구조를 선택했습니다.
@@ -123,7 +123,7 @@ isDeleted, deletedAt, deletedReason 필드로 Soft Delete 패턴 적용
 
 문제: Ready 성공 후 Approve 실패 시 데이터 불일치
 
-해결: PendingPayment 테이블로 중간 상태 저장, Approve 성공 시에만 Payment/UserCourse 생성
+해결: PendingPayment 테이블로 중간 상태 저장, Approve 성공 시에만 Payment / UserCourse 생성
 
 🔹 코스 진행률
 
@@ -136,3 +136,17 @@ isDeleted, deletedAt, deletedReason 필드로 Soft Delete 패턴 적용
 문제: 전체 조회 후 필터링은 성능 저하 및 N+1 문제 발생
 
 해결: Spring Data JPA Specification + @EntityGraph로 동적 검색 및 성능 최적화
+
+🔹 실시간 채팅 (WebSocket + STOMP)
+
+문제: REST 폴링 방식은 지연·트래픽 부담이 크고, 인증되지 않은 사용자의 접근 위험 존재
+
+해결: WebSocket 기반 STOMP 프로토콜 도입 →
+
+채팅방(ChatRoom) 생성 시 JWT 인증을 Handshake Interceptor에서 검증
+
+메시지는 ChatMessage 엔티티에 저장하여 이력 유지
+
+클라이언트 재접속 시 기존 대화 기록 불러오기 가능
+
+DB에는 sentAt(KST 기준) 저장 → JSON 응답 시 타임존 명시
