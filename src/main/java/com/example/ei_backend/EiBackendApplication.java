@@ -5,6 +5,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
+import jakarta.annotation.PostConstruct;
+import java.util.TimeZone;
+
 @EnableJpaAuditing
 @SpringBootApplication
 @ConfigurationPropertiesScan(basePackages = "com.example.ei_backend")
@@ -14,4 +17,8 @@ public class EiBackendApplication {
         SpringApplication.run(EiBackendApplication.class, args);
     }
 
+    @PostConstruct
+    public void initTimezone() {
+        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Seoul"));
+    }
 }
