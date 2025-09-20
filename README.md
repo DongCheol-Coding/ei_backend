@@ -6,10 +6,8 @@
 
 ## 1️⃣ 팀 구성원 (Team Members)
 
-### 🔹 [Front-End](https://github.com/DongCheol-Coding/ei_frontend) : 이동현
-
-
-### 🔹 [Back-End](https://github.com/DongCheol-Coding/ei_backend) : 하민철
+#### 🔹 [Back-End](https://github.com/DongCheol-Coding/ei_backend) : 하민철
+#### 🔹 [Front-End](https://github.com/DongCheol-Coding/ei_frontend) : 이동현 
 
 <br>
 
